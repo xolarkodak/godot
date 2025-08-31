@@ -875,6 +875,8 @@ public:
 	FUNC2(canvas_item_set_update_when_visible, RID, bool)
 
 	FUNC2(canvas_item_set_transform, RID, const Transform2D &)
+	FUNC1RC(Transform2D, canvas_item_get_transform, RID)
+
 	FUNC2(canvas_item_set_clip, RID, bool)
 	FUNC2(canvas_item_set_distance_field_mode, RID, bool)
 	FUNC3(canvas_item_set_custom_rect, RID, bool, const Rect2 &)

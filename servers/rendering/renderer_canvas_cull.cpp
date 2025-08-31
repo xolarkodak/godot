@@ -289,6 +289,7 @@ void RendererCanvasCull::_cull_canvas_item(Item *p_canvas_item, const Transform2
 		parent_xform.columns[2] = (parent_xform.columns[2] + Point2(0.5, 0.5)).floor();
 	}
 
+	ci->xform_final = final_xform;
 	final_xform = parent_xform * final_xform;
 
 	Rect2 global_rect = final_xform.xform(rect);
@@ -570,6 +571,12 @@ void RendererCanvasCull::canvas_item_set_transform(RID p_item, const Transform2D
 	}
 
 	canvas_item->xform_curr = p_transform;
+}
+
+Transform2D RendererCanvasCull::canvas_item_get_transform(RID p_item) const {
+	Item *canvas_item = canvas_item_owner.get_or_null(p_item);
+	ERR_FAIL_NULL_V(canvas_item, Transform2D());
+	return canvas_item->xform_final;
 }
 
 void RendererCanvasCull::canvas_item_set_visibility_layer(RID p_item, uint32_t p_visibility_layer) {

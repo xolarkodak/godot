@@ -316,6 +316,7 @@ public:
 		// and the previous xform from the previous tick.
 		Transform2D xform_curr;
 		Transform2D xform_prev;
+		Transform2D xform_final;
 
 		bool clip : 1;
 		bool visible : 1;

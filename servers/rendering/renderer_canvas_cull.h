@@ -220,6 +220,8 @@ public:
 	uint32_t canvas_item_get_visibility_layer(RID p_item);
 
 	void canvas_item_set_transform(RID p_item, const Transform2D &p_transform);
+	Transform2D canvas_item_get_transform(RID p_item) const;
+
 	void canvas_item_set_clip(RID p_item, bool p_clip);
 	void canvas_item_set_distance_field_mode(RID p_item, bool p_enable);
 	void canvas_item_set_custom_rect(RID p_item, bool p_custom_rect, const Rect2 &p_rect = Rect2());

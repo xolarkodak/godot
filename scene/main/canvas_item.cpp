@@ -187,6 +187,10 @@ Transform2D CanvasItem::get_global_transform() const {
 	return global_transform;
 }
 
+Transform2D CanvasItem::get_draw_transform() const {
+	return RenderingServer::get_singleton()->canvas_item_get_transform(canvas_item);
+}
+
 void CanvasItem::_set_global_invalid(bool p_invalid) const {
 	if (is_group_processing()) {
 		if (p_invalid) {
@@ -1232,6 +1236,7 @@ void CanvasItem::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_viewport_rect"), &CanvasItem::get_viewport_rect);
 	ClassDB::bind_method(D_METHOD("get_canvas_transform"), &CanvasItem::get_canvas_transform);
 	ClassDB::bind_method(D_METHOD("get_screen_transform"), &CanvasItem::get_screen_transform);
+	ClassDB::bind_method(D_METHOD("get_draw_transform"), &CanvasItem::get_draw_transform);
 	ClassDB::bind_method(D_METHOD("get_local_mouse_position"), &CanvasItem::get_local_mouse_position);
 	ClassDB::bind_method(D_METHOD("get_global_mouse_position"), &CanvasItem::get_global_mouse_position);
 	ClassDB::bind_method(D_METHOD("get_canvas"), &CanvasItem::get_canvas);
