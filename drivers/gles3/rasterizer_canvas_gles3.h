@@ -267,7 +267,7 @@ public:
 		RS::CanvasItemTextureRepeat repeat = RS::CANVAS_ITEM_TEXTURE_REPEAT_MAX;
 
 		GLES3::CanvasShaderData::BlendMode blend_mode = GLES3::CanvasShaderData::BLEND_MODE_MIX;
-		Color blend_color = Color(1.0, 1.0, 1.0, 1.0);
+		Color modulate = Color(1.0, 1.0, 1.0, 1.0);
 
 		Item *clip = nullptr;
 

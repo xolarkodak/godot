@@ -725,7 +725,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 		}
 
 		GLES3::CanvasShaderData::BlendMode blend_mode = state.canvas_instance_batches[i].blend_mode;
-		Color blend_color = state.canvas_instance_batches[i].blend_color;
+		Color blend_color = state.canvas_instance_batches[i].modulate;
 
 		if (last_blend_mode != blend_mode || last_blend_color != blend_color) {
 			if (last_blend_mode == GLES3::CanvasShaderData::BLEND_MODE_DISABLED) {
@@ -810,18 +810,14 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 
 void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_render_target, const Transform2D &p_canvas_transform_inverse, Item *&current_clip, GLES3::CanvasShaderData::BlendMode p_blend_mode, Light *p_lights, uint32_t &r_index, bool &r_batch_broken, bool &r_sdf_used, const Point2 &p_repeat_offset) {
 	RenderingServer::CanvasItemTextureFilter texture_filter = p_item->texture_filter == RS::CANVAS_ITEM_TEXTURE_FILTER_DEFAULT ? state.default_filter : p_item->texture_filter;
+	RenderingServer::CanvasItemTextureRepeat texture_repeat = p_item->texture_repeat == RS::CANVAS_ITEM_TEXTURE_REPEAT_DEFAULT ? state.default_repeat : p_item->texture_repeat;
 
 	if (texture_filter != state.canvas_instance_batches[state.current_batch_index].filter) {
 		_new_batch(r_batch_broken);
-
 		state.canvas_instance_batches[state.current_batch_index].filter = texture_filter;
 	}
 
-	RenderingServer::CanvasItemTextureRepeat texture_repeat = p_item->texture_repeat == RS::CANVAS_ITEM_TEXTURE_REPEAT_DEFAULT ? state.default_repeat : p_item->texture_repeat;
-
-	if (texture_repeat != state.canvas_instance_batches[state.current_batch_index].repeat) {
-		_new_batch(r_batch_broken);
-
+	if (texture_repeat == RenderingServer::CanvasItemTextureRepeat::CANVAS_ITEM_TEXTURE_REPEAT_ENABLED) {
 		state.canvas_instance_batches[state.current_batch_index].repeat = texture_repeat;
 	}
 
@@ -834,6 +830,8 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 	Transform2D draw_transform; // Used by transform command
 
 	Color base_color = p_item->final_modulate;
+	Color mobulated;
+
 	uint32_t base_flags = 0;
 	Size2 texpixel_size;
 
@@ -906,32 +904,40 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 
 		state.instance_data_array[r_index].flags = base_flags | (state.instance_data_array[r_index == 0 ? 0 : r_index - 1].flags & (FLAGS_DEFAULT_NORMAL_MAP_USED | FLAGS_DEFAULT_SPECULAR_MAP_USED)); // Reset on each command for safety, keep canvastexture binding config.
 
-		Color blend_color = base_color;
-		GLES3::CanvasShaderData::BlendMode blend_mode = p_blend_mode;
-		if (c->type == Item::Command::TYPE_RECT) {
-			const Item::CommandRect *rect = static_cast<const Item::CommandRect *>(c);
-			if (rect->flags & CANVAS_RECT_LCD) {
-				blend_mode = GLES3::CanvasShaderData::BLEND_MODE_LCD;
-				blend_color = rect->modulate * base_color;
-			}
-		}
-
-		if (blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode || blend_color != state.canvas_instance_batches[state.current_batch_index].blend_color) {
-			_new_batch(r_batch_broken);
-			state.canvas_instance_batches[state.current_batch_index].blend_mode = blend_mode;
-			state.canvas_instance_batches[state.current_batch_index].blend_color = blend_color;
-		}
 
 		switch (c->type) {
 			case Item::Command::TYPE_RECT: {
 				const Item::CommandRect *rect = static_cast<const Item::CommandRect *>(c);
-
-				if (rect->flags & CANVAS_RECT_TILE && state.canvas_instance_batches[state.current_batch_index].repeat != RenderingServer::CanvasItemTextureRepeat::CANVAS_ITEM_TEXTURE_REPEAT_ENABLED) {
+				
+				// 1: If commands are different, start a new batch.
+				if (state.canvas_instance_batches[state.current_batch_index].command_type != Item::Command::TYPE_RECT) {
 					_new_batch(r_batch_broken);
+					state.canvas_instance_batches[state.current_batch_index].tex = rect->texture;
+					state.canvas_instance_batches[state.current_batch_index].command_type = Item::Command::TYPE_RECT;
+					state.canvas_instance_batches[state.current_batch_index].command = c;
+					state.canvas_instance_batches[state.current_batch_index].shader_variant = CanvasShaderGLES3::MODE_QUAD;
+				}
+
+
+				GLES3::CanvasShaderData::BlendMode blend_mode = p_blend_mode;
+				mobulated = rect -> modulate * base_color;
+				
+				if (bool(rect->flags & CANVAS_RECT_LCD)) {
+					blend_mode = GLES3::CanvasShaderData::BLEND_MODE_LCD;
+				}
+
+				if (blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode || (bool(rect->flags & CANVAS_RECT_LCD) && mobulated != state.canvas_instance_batches[state.current_batch_index].modulate)) {
+					_new_batch(r_batch_broken);
+					state.canvas_instance_batches[state.current_batch_index].blend_mode = blend_mode;
+					state.canvas_instance_batches[state.current_batch_index].modulate = mobulated;
+				}
+
+
+				if (bool(rect->flags & CANVAS_RECT_TILE)) {
 					state.canvas_instance_batches[state.current_batch_index].repeat = RenderingServer::CanvasItemTextureRepeat::CANVAS_ITEM_TEXTURE_REPEAT_ENABLED;
 				}
 
-				if (rect->texture != state.canvas_instance_batches[state.current_batch_index].tex || state.canvas_instance_batches[state.current_batch_index].command_type != Item::Command::TYPE_RECT) {
+				if (rect->texture != state.canvas_instance_batches[state.current_batch_index].tex) {
 					_new_batch(r_batch_broken);
 					state.canvas_instance_batches[state.current_batch_index].tex = rect->texture;
 					state.canvas_instance_batches[state.current_batch_index].command_type = Item::Command::TYPE_RECT;
@@ -944,7 +950,7 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				Rect2 src_rect;
 				Rect2 dst_rect;
 
-				if (rect->texture != RID()) {
+				if (rect->texture.is_valid()) {
 					src_rect = (rect->flags & CANVAS_RECT_REGION) ? Rect2(rect->source.position * texpixel_size, rect->source.size * texpixel_size) : Rect2(0, 0, 1, 1);
 					dst_rect = Rect2(rect->rect.position, rect->rect.size);
 
@@ -990,7 +996,7 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					src_rect = Rect2(0, 0, 1, 1);
 				}
 
-				if (rect->flags & CANVAS_RECT_MSDF) {
+				if (bool(rect->flags & CANVAS_RECT_MSDF)) {
 					state.instance_data_array[r_index].flags |= FLAGS_USE_MSDF;
 					state.instance_data_array[r_index].msdf[0] = rect->px_range; // Pixel range.
 					state.instance_data_array[r_index].msdf[1] = rect->outline; // Outline size.
@@ -1000,10 +1006,10 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					state.instance_data_array[r_index].flags |= FLAGS_USE_LCD;
 				}
 
-				state.instance_data_array[r_index].modulation[0] = rect->modulate.r * base_color.r;
-				state.instance_data_array[r_index].modulation[1] = rect->modulate.g * base_color.g;
-				state.instance_data_array[r_index].modulation[2] = rect->modulate.b * base_color.b;
-				state.instance_data_array[r_index].modulation[3] = rect->modulate.a * base_color.a;
+				state.instance_data_array[r_index].modulation[0] = mobulated.r;
+				state.instance_data_array[r_index].modulation[1] = mobulated.g;
+				state.instance_data_array[r_index].modulation[2] = mobulated.b;
+				state.instance_data_array[r_index].modulation[3] = mobulated.a;
 
 				state.instance_data_array[r_index].src_rect[0] = src_rect.position.x;
 				state.instance_data_array[r_index].src_rect[1] = src_rect.position.y;
