@@ -430,7 +430,7 @@ float RendererEnvironmentStorage::environment_get_volumetric_fog_ambient_inject(
 void RendererEnvironmentStorage::environment_set_glow(RID p_env, bool p_enable, Vector<float> p_levels, float p_intensity, float p_strength, float p_mix, float p_bloom_threshold, RS::EnvironmentGlowBlendMode p_blend_mode, float p_hdr_bleed_threshold, float p_hdr_bleed_scale, float p_hdr_luminance_cap, float p_glow_map_strength, RID p_glow_map) {
 	Environment *env = environment_owner.get_or_null(p_env);
 	ERR_FAIL_NULL(env);
-	ERR_FAIL_COND_MSG(p_levels.size() != 7, "Size of array of glow levels must be 7");
+	ERR_FAIL_COND_MSG(p_levels.size() != RS::MAX_GLOW_LEVELS, "Size of array of glow levels must == RenderServer::MAX_GLOW_LEVELS");
 	env->glow_enabled = p_enable;
 	env->glow_levels = p_levels;
 	env->glow_intensity = p_intensity;
