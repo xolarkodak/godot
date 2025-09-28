@@ -3224,6 +3224,7 @@ void RenderingServer::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("canvas_item_set_custom_rect", "item", "use_custom_rect", "rect"), &RenderingServer::canvas_item_set_custom_rect, DEFVAL(Rect2()));
 	ClassDB::bind_method(D_METHOD("canvas_item_set_modulate", "item", "color"), &RenderingServer::canvas_item_set_modulate);
 	ClassDB::bind_method(D_METHOD("canvas_item_set_self_modulate", "item", "color"), &RenderingServer::canvas_item_set_self_modulate);
+	ClassDB::bind_method(D_METHOD("canvas_item_set_ignore_canvas_modulate", "item", "enabled"), &RenderingServer::canvas_item_set_ignore_canvas_modulate);
 	ClassDB::bind_method(D_METHOD("canvas_item_set_draw_behind_parent", "item", "enabled"), &RenderingServer::canvas_item_set_draw_behind_parent);
 	ClassDB::bind_method(D_METHOD("canvas_item_set_interpolated", "item", "interpolated"), &RenderingServer::canvas_item_set_interpolated);
 	ClassDB::bind_method(D_METHOD("canvas_item_reset_physics_interpolation", "item"), &RenderingServer::canvas_item_reset_physics_interpolation);

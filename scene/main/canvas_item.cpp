@@ -539,6 +539,20 @@ Color CanvasItem::get_self_modulate() const {
 	return self_modulate;
 }
 
+void CanvasItem::set_ignore_canvas_modulate(bool p_enable) {
+	ERR_THREAD_GUARD;
+	if (ignore_canvas_modulate == p_enable) {
+		return;
+	}
+	ignore_canvas_modulate = p_enable;
+	RenderingServer::get_singleton()->canvas_item_set_ignore_canvas_modulate(canvas_item, ignore_canvas_modulate);
+}
+
+bool CanvasItem::is_ignore_canvas_modulate() const {
+	ERR_READ_THREAD_GUARD_V(false);
+	return ignore_canvas_modulate;
+}
+
 void CanvasItem::set_light_mask(int p_light_mask) {
 	ERR_THREAD_GUARD;
 	if (light_mask == p_light_mask) {
@@ -1187,6 +1201,9 @@ void CanvasItem::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_self_modulate", "self_modulate"), &CanvasItem::set_self_modulate);
 	ClassDB::bind_method(D_METHOD("get_self_modulate"), &CanvasItem::get_self_modulate);
 
+	ClassDB::bind_method(D_METHOD("set_ignore_canvas_modulate", "enable"), &CanvasItem::set_ignore_canvas_modulate);
+	ClassDB::bind_method(D_METHOD("is_ignore_canvas_modulate"), &CanvasItem::is_ignore_canvas_modulate);
+
 	ClassDB::bind_method(D_METHOD("set_z_index", "z_index"), &CanvasItem::set_z_index);
 	ClassDB::bind_method(D_METHOD("get_z_index"), &CanvasItem::get_z_index);
 
@@ -1281,6 +1298,7 @@ void CanvasItem::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "visible"), "set_visible", "is_visible");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "modulate"), "set_modulate", "get_modulate");
 	ADD_PROPERTY(PropertyInfo(Variant::COLOR, "self_modulate"), "set_self_modulate", "get_self_modulate");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "ignore_canvas_modulate"), "set_ignore_canvas_modulate", "is_ignore_canvas_modulate");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "show_behind_parent"), "set_draw_behind_parent", "is_draw_behind_parent_enabled");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "top_level"), "set_as_top_level", "is_set_as_top_level");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "clip_children", PROPERTY_HINT_ENUM, "Disabled,Clip Only,Clip + Draw"), "set_clip_children_mode", "get_clip_children_mode");
