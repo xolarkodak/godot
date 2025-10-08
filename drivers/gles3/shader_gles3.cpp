@@ -56,6 +56,8 @@ void ShaderGLES3::_add_stage(const char *p_code, StageType p_stage_type) {
 		StageTemplate::Chunk chunk;
 
 		if (l.begins_with("#GLOBALS")) {
+			push_chunk = true;
+
 			switch (p_stage_type) {
 				case STAGE_TYPE_VERTEX:
 					chunk.type = StageTemplate::Chunk::TYPE_VERTEX_GLOBALS;
@@ -63,39 +65,29 @@ void ShaderGLES3::_add_stage(const char *p_code, StageType p_stage_type) {
 				case STAGE_TYPE_FRAGMENT:
 					chunk.type = StageTemplate::Chunk::TYPE_FRAGMENT_GLOBALS;
 					break;
-				default: {
-				}
+				default: {}
 			}
-
-			push_chunk = true;
 		} else if (l.begins_with("#MATERIAL_UNIFORMS")) {
+			push_chunk = true;
 			chunk.type = StageTemplate::Chunk::TYPE_MATERIAL_UNIFORMS;
-			push_chunk = true;
 		} else if (l.begins_with("#CODE")) {
-			chunk.type = StageTemplate::Chunk::TYPE_CODE;
 			push_chunk = true;
+			chunk.type = StageTemplate::Chunk::TYPE_CODE;
 			chunk.code = l.replace_first("#CODE", String()).replace(":", "").strip_edges().to_upper();
 		} else {
 			text += l + "\n";
 		}
-
-		if (push_chunk) {
-			if (text != String()) {
-				StageTemplate::Chunk text_chunk;
-				text_chunk.type = StageTemplate::Chunk::TYPE_TEXT;
-				text_chunk.text = text.utf8();
-				stage_templates[p_stage_type].chunks.push_back(text_chunk);
-				text = String();
-			}
-			stage_templates[p_stage_type].chunks.push_back(chunk);
-		}
-
+		
 		if (text != String()) {
 			StageTemplate::Chunk text_chunk;
 			text_chunk.type = StageTemplate::Chunk::TYPE_TEXT;
 			text_chunk.text = text.utf8();
 			stage_templates[p_stage_type].chunks.push_back(text_chunk);
 			text = String();
+		}
+
+		if (push_chunk) {
+			stage_templates[p_stage_type].chunks.push_back(chunk);
 		}
 	}
 }
