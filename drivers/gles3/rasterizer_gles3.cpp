@@ -98,7 +98,7 @@ void RasterizerGLES3::begin_frame(double frame_step) {
 	time_total = Math::fmod(time_total, time_roll_over);
 
 	canvas->set_time(time_total);
-	scene->set_time(time_total, frame_step);
+	//scene->set_time(time_total, frame_step);
 
 	GLES3::Utilities *utils = GLES3::Utilities::get_singleton();
 	utils->_capture_timestamps_begin();
