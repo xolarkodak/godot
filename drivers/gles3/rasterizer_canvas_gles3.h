@@ -99,6 +99,8 @@ class RasterizerCanvasGLES3 : public RendererCanvasRender {
 		DEFAULT_MAX_LIGHTS_PER_RENDER = 256,
 	};
 
+	bool pixel_snap = false;
+
 	/******************/
 	/**** LIGHTING ****/
 	/******************/
@@ -236,11 +238,11 @@ public:
 	static_assert(sizeof(InstanceData) == 128, "2D instance data struct size must be 128 bytes");
 
 	struct Data {
-		GLuint canvas_quad_vertices;
-		GLuint canvas_quad_array;
+		GLuint quad_vao;
+		GLuint quad_vbo_vertices;
+		GLuint quad_vbo_indices;
 
-		GLuint indexed_quad_buffer;
-		GLuint indexed_quad_array;
+		GLuint primitive_vao;
 
 		GLuint particle_quad_vertices;
 		GLuint particle_quad_array;
@@ -281,6 +283,9 @@ public:
 		uint32_t primitive_points = 0;
 
 		bool lights_disabled = false;
+
+		bool use_msdf = false;
+		bool use_lcd = false;
 	};
 
 	// DataBuffer contains our per-frame data. I.e. the resources that are updated each frame.

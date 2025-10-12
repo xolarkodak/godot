@@ -349,7 +349,7 @@ public:
 		VaryingFunctionNames() {
 			fragment = "fragment";
 			vertex = "vertex";
-			light = "light";
+			light = "light_f";
 		}
 	};
 

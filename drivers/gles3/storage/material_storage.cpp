@@ -1131,8 +1131,6 @@ MaterialStorage::MaterialStorage() {
 		ShaderCompiler::DefaultIdentifierActions actions;
 
 		actions.renames["VERTEX"] = "vertex";
-		actions.renames["LIGHT_VERTEX"] = "light_vertex";
-		actions.renames["SHADOW_VERTEX"] = "shadow_vertex";
 		actions.renames["UV"] = "uv";
 		actions.renames["POINT_SIZE"] = "point_size";
 
@@ -1143,35 +1141,17 @@ MaterialStorage::MaterialStorage() {
 		actions.renames["PI"] = _MKSTR(Math_PI);
 		actions.renames["TAU"] = _MKSTR(Math_TAU);
 		actions.renames["E"] = _MKSTR(Math_E);
-		actions.renames["AT_LIGHT_PASS"] = "false";
 		actions.renames["INSTANCE_CUSTOM"] = "instance_custom";
 
 		actions.renames["COLOR"] = "color";
-		actions.renames["NORMAL"] = "normal";
-		actions.renames["NORMAL_MAP"] = "normal_map";
-		actions.renames["NORMAL_MAP_DEPTH"] = "normal_map_depth";
-		actions.renames["TEXTURE"] = "color_texture";
+		actions.renames["TEXTURE"] = "main_texture";
 		actions.renames["TEXTURE_PIXEL_SIZE"] = "color_texture_pixel_size";
-		actions.renames["NORMAL_TEXTURE"] = "normal_texture";
-		actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
-		actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
 		actions.renames["SCREEN_UV"] = "screen_uv";
 		actions.renames["SCREEN_PIXEL_SIZE"] = "screen_pixel_size";
 		actions.renames["FRAGCOORD"] = "gl_FragCoord";
 		actions.renames["POINT_COORD"] = "gl_PointCoord";
 		actions.renames["INSTANCE_ID"] = "gl_InstanceID";
 		actions.renames["VERTEX_ID"] = "gl_VertexID";
-
-		actions.renames["CUSTOM0"] = "custom0";
-		actions.renames["CUSTOM1"] = "custom1";
-
-		actions.renames["LIGHT_POSITION"] = "light_position";
-		actions.renames["LIGHT_DIRECTION"] = "light_direction";
-		actions.renames["LIGHT_IS_DIRECTIONAL"] = "is_directional";
-		actions.renames["LIGHT_COLOR"] = "light_color";
-		actions.renames["LIGHT_ENERGY"] = "light_energy";
-		actions.renames["LIGHT"] = "light";
-		actions.renames["SHADOW_MODULATE"] = "shadow_modulate";
 
 		actions.renames["texture_sdf"] = "texture_sdf";
 		actions.renames["texture_sdf_normal"] = "texture_sdf_normal";
@@ -1181,15 +1161,8 @@ MaterialStorage::MaterialStorage() {
 		actions.usage_defines["COLOR"] = "#define COLOR_USED\n";
 		actions.usage_defines["SCREEN_UV"] = "#define SCREEN_UV_USED\n";
 		actions.usage_defines["SCREEN_PIXEL_SIZE"] = "@SCREEN_UV";
-		actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
-		actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";
-		actions.usage_defines["SPECULAR_SHININESS"] = "#define SPECULAR_SHININESS_USED\n";
-		actions.usage_defines["CUSTOM0"] = "#define CUSTOM0_USED\n";
-		actions.usage_defines["CUSTOM1"] = "#define CUSTOM1_USED\n";
 
 		actions.render_mode_defines["skip_vertex_transform"] = "#define SKIP_TRANSFORM_USED\n";
-		actions.render_mode_defines["unshaded"] = "#define MODE_UNSHADED\n";
-		actions.render_mode_defines["light_only"] = "#define MODE_LIGHT_ONLY\n";
 		actions.render_mode_defines["world_vertex_coords"] = "#define USE_WORLD_VERTEX_COORDS\n";
 
 		actions.global_buffer_array_variable = "global_shader_uniforms";
@@ -2560,7 +2533,7 @@ void CanvasShaderData::set_code(const String &p_code) {
 	ShaderCompiler::IdentifierActions actions;
 	actions.entry_point_stages["vertex"] = ShaderCompiler::STAGE_VERTEX;
 	actions.entry_point_stages["fragment"] = ShaderCompiler::STAGE_FRAGMENT;
-	actions.entry_point_stages["light"] = ShaderCompiler::STAGE_FRAGMENT;
+	//actions.entry_point_stages["light"] = ShaderCompiler::STAGE_FRAGMENT;
 
 	actions.render_mode_values["blend_add"] = Pair<int *, int>(&blend_modei, BLEND_MODE_ADD);
 	actions.render_mode_values["blend_mix"] = Pair<int *, int>(&blend_modei, BLEND_MODE_MIX);
@@ -2902,7 +2875,7 @@ void SceneShaderData::set_code(const String &p_code) {
 	ShaderCompiler::IdentifierActions actions;
 	actions.entry_point_stages["vertex"] = ShaderCompiler::STAGE_VERTEX;
 	actions.entry_point_stages["fragment"] = ShaderCompiler::STAGE_FRAGMENT;
-	actions.entry_point_stages["light"] = ShaderCompiler::STAGE_FRAGMENT;
+	//actions.entry_point_stages["light"] = ShaderCompiler::STAGE_FRAGMENT;
 
 	actions.render_mode_values["blend_add"] = Pair<int *, int>(&blend_modei, BLEND_MODE_ADD);
 	actions.render_mode_values["blend_mix"] = Pair<int *, int>(&blend_modei, BLEND_MODE_MIX);
