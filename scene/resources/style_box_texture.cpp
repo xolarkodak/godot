@@ -41,6 +41,12 @@ void StyleBoxTexture::set_texture(Ref<Texture2D> p_texture) {
 		return;
 	}
 	texture = p_texture;
+	texture_rect = Rect2(0, 0, texture->get_size());
+
+	if (region_rect.size.is_zero_approx()) {
+		region_rect = texture_rect;
+	}
+
 	emit_changed();
 }
 
@@ -107,7 +113,7 @@ void StyleBoxTexture::set_region_rect(const Rect2 &p_region_rect) {
 		return;
 	}
 
-	region_rect = p_region_rect;
+	region_rect = p_region_rect.size.is_zero_approx() ? texture_rect : p_region_rect;
 	emit_changed();
 }
 
@@ -166,9 +172,8 @@ void StyleBoxTexture::draw(RID p_canvas_item, const Rect2 &p_rect) const {
 	}
 
 	Rect2 rect = p_rect;
-	Rect2 src_rect = region_rect;
 
-	texture->get_rect_region(rect, src_rect, rect, src_rect);
+	//texture->get_rect_region(rect, src_rect, rect, src_rect);
 
 	rect.position.x -= expand_margin[SIDE_LEFT];
 	rect.position.y -= expand_margin[SIDE_TOP];
@@ -178,7 +183,7 @@ void StyleBoxTexture::draw(RID p_canvas_item, const Rect2 &p_rect) const {
 	Vector2 start_offset = Vector2(texture_margin[SIDE_LEFT], texture_margin[SIDE_TOP]);
 	Vector2 end_offset = Vector2(texture_margin[SIDE_RIGHT], texture_margin[SIDE_BOTTOM]);
 
-	RenderingServer::get_singleton()->canvas_item_add_nine_patch(p_canvas_item, rect, src_rect, texture->get_rid(), start_offset, end_offset, RS::NinePatchAxisMode(axis_h), RS::NinePatchAxisMode(axis_v), draw_center, modulate);
+	RenderingServer::get_singleton()->canvas_item_add_nine_patch(p_canvas_item, rect, region_rect, texture->get_rid(), start_offset, end_offset, RS::NinePatchAxisMode(axis_h), RS::NinePatchAxisMode(axis_v), draw_center, modulate);
 }
 
 void StyleBoxTexture::_bind_methods() {
@@ -226,7 +231,7 @@ void StyleBoxTexture::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "axis_stretch_horizontal", PROPERTY_HINT_ENUM, "Stretch,Tile,Tile Fit"), "set_h_axis_stretch_mode", "get_h_axis_stretch_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "axis_stretch_vertical", PROPERTY_HINT_ENUM, "Stretch,Tile,Tile Fit"), "set_v_axis_stretch_mode", "get_v_axis_stretch_mode");
 
-	ADD_GROUP("Sub-Region", "region_");
+	ADD_GROUP("Region Rect", "region_");
 	ADD_PROPERTY(PropertyInfo(Variant::RECT2, "region_rect", PROPERTY_HINT_NONE, "suffix:px"), "set_region_rect", "get_region_rect");
 
 	ADD_GROUP("Modulate", "modulate_");

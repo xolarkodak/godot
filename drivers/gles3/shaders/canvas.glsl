@@ -2,7 +2,6 @@
 #[modes]
 
 mode_quad = #define MODE_QUAD
-mode_ninepatch = #define USE_NINEPATCH
 mode_primitive = #define USE_PRIMITIVE
 mode_attributes = #define USE_ATTRIBUTES
 mode_instanced = #define USE_ATTRIBUTES \n#define USE_INSTANCING
@@ -12,6 +11,7 @@ mode_instanced = #define USE_ATTRIBUTES \n#define USE_INSTANCING
 PIXEL_SNAP = false
 USE_MSDF = false
 USE_LCD = false
+USE_REGION_TILE = false
 
 #[vertex]
 
@@ -55,7 +55,7 @@ layout(location = 13) in highp uvec4 attrib_F;
 layout(location = 13) in highp vec4 attrib_F;
 #endif
 layout(location = 14) in highp uvec4 attrib_G;
-layout(location = 15) in highp uvec4 attrib_H;
+//layout(location = 15) in highp uvec4 attrib_H;
 
 #define read_draw_data_world_x attrib_A.xy
 #define read_draw_data_world_y attrib_A.zw
@@ -81,15 +81,14 @@ layout(location = 15) in highp uvec4 attrib_H;
 #else
 
 #define read_draw_data_modulation attrib_C
-#define read_draw_data_ninepatch_margins attrib_D
-#define read_draw_data_dst_rect attrib_E
-#define read_draw_data_src_rect attrib_F
+#define read_draw_data_msdf attrib_D
+#define dst_rect attrib_E
+#define uv_rect attrib_F
 
 #endif
 
 #define read_draw_data_flags attrib_G.z
 #define read_draw_data_specular_shininess attrib_G.w
-#define read_draw_data_lights attrib_H
 
 // Varyings so the per-instance info can be used in the fragment shader
 flat out vec4 varying_A;
@@ -97,11 +96,10 @@ flat out vec2 varying_B;
 #ifndef USE_PRIMITIVE
 flat out vec4 varying_C;
 #ifndef USE_ATTRIBUTES
-flat out vec4 varying_E;
+flat out vec2 varying_E;
 #endif
 #endif
 flat out uvec2 varying_F;
-flat out uvec4 varying_G;
 
 // This needs to be outside clang-format so the ubo comment is in the right place
 #ifdef MATERIAL_UNIFORMS_USED
@@ -118,27 +116,20 @@ out vec2 uv_interp;
 out vec4 color_interp;
 out vec2 vertex_interp;
 
-#ifdef USE_NINEPATCH
-
-out vec2 pixel_size_interp;
-
-#endif
-
 #GLOBALS
 
 void main() {
 	varying_A = vec4(read_draw_data_world_x, read_draw_data_world_y);
 	varying_B = read_draw_data_color_texture_pixel_size;
 #ifndef USE_PRIMITIVE
-	varying_C = read_draw_data_ninepatch_margins;
+	varying_C = read_draw_data_msdf;
 
 #ifndef USE_ATTRIBUTES
-	varying_E = read_draw_data_src_rect;
+	varying_E = uv_rect.xy;
 #endif // !USE_ATTRIBUTES
 #endif // USE_PRIMITIVE
 
 	varying_F = uvec2(read_draw_data_flags, read_draw_data_specular_shininess);
-	varying_G = read_draw_data_lights;
 
 	vec4 instance_custom = vec4(0.0);
 
@@ -195,9 +186,17 @@ void main() {
 	vec2 vertex_base;
 #endif // MODE_QUAD
 
-	vec2 uv = read_draw_data_src_rect.xy + abs(read_draw_data_src_rect.zw) * ((read_draw_data_flags & FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
+#if !defined(USE_REGION_TILE)
+	vec2 uv = uv_rect.xy + abs(uv_rect.zw) * ((read_draw_data_flags & FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
+	//vec2 uv = uv_rect.xy + uv_rect.zw*vertex_base;
+#else
+	vec2 uv = uv_rect.zw*vertex_base;
+#endif // USE_REGION_TILE
+
 	vec4 color = read_draw_data_modulation;
-	vec2 vertex = read_draw_data_dst_rect.xy + abs(read_draw_data_dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(read_draw_data_src_rect.zw, vec2(0.0, 0.0)));
+	vec2 vertex = dst_rect.xy + abs(dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(uv_rect.zw, vec2(0.0, 0.0)));
+	//vec2 vertex = dst_rect.xy + dst_rect.zw*vertex_base;
+
 
 #endif // USE_ATTRIBUTES
 
@@ -262,26 +261,30 @@ flat in vec4 varying_A;
 flat in vec2 varying_B;
 #define read_draw_data_world_x varying_A.xy
 #define read_draw_data_world_y varying_A.zw
-#define read_draw_data_color_texture_pixel_size varying_B
+
+#if defined(USE_REGION_TILE)
+#define uv_repeat varying_B
+#endif // USE_REGION_TILE
 
 #ifndef USE_PRIMITIVE
 flat in vec4 varying_C;
-#define read_draw_data_ninepatch_margins varying_C
+#define read_draw_data_msdf varying_C
 
 #ifndef USE_ATTRIBUTES
 
-flat in vec4 varying_E;
-#define read_draw_data_src_rect varying_E
+flat in vec2 varying_E;
+#define uv_offset varying_E
 #endif // USE_ATTRIBUTES
 #endif // USE_PRIMITIVE
 
 flat in uvec2 varying_F;
-flat in uvec4 varying_G;
 #define read_draw_data_flags varying_F.x
-#define read_draw_data_specular_shininess varying_F.y
-#define read_draw_data_lights varying_G
 
 uniform sampler2D main_texture; //texunit:0
+
+#if defined(SCREEN_TEXTURE_USE)
+uniform sampler2D backbuffer_texture; //texunit:-4
+#endif
 
 layout(location = 0) out vec4 frag_color;
 
@@ -304,7 +307,13 @@ float msdf_median(float r, float g, float b, float a) {
 
 void main() {
 	vec4 color = color_interp;
+
+#if !defined(USE_REGION_TILE)
 	vec2 uv = uv_interp;
+#else
+	vec2 uv = uv_offset + fract(uv_interp)*uv_repeat;
+#endif // USE_REGION_TILE
+
 	vec2 vertex = vertex_interp;
 
 #if !defined(FRAGMENT_CODE_USED) && (defined(USE_PRIMITIVE) || (!defined(USE_MSDF) && !defined(USE_LCD)))
@@ -314,8 +323,8 @@ void main() {
 #if !defined(USE_PRIMITIVE)
 
 #if defined(USE_MSDF)
-	float px_range = read_draw_data_ninepatch_margins.x;
-	float outline_thickness = read_draw_data_ninepatch_margins.y;
+	float px_range = read_draw_data_msdf.x;
+	float outline_thickness = read_draw_data_msdf.y;
 
 	vec4 msdf_sample = texture(main_texture, uv);
 	vec2 msdf_size = vec2(textureSize(main_texture, 0));

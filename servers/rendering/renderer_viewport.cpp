@@ -283,33 +283,29 @@ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
 	}
 
 	if (can_draw_2d) {
-		//RBMap<Viewport::CanvasKey, Viewport::CanvasData *> canvas_map;
+		RBMap<Viewport::CanvasKey, Viewport::CanvasData *> canvas_map;
 
 		Rect2 clip_rect(0, 0, p_viewport->size.x, p_viewport->size.y);
 
-		RSG::texture_storage->render_target_mark_sdf_enabled(p_viewport->render_target, false);
+		//for (KeyValue<RID, Viewport::CanvasData> &E : p_viewport->canvas_map) {
+		//	RendererCanvasCull::Canvas *canvas = static_cast<RendererCanvasCull::Canvas *>(E.value.canvas);
+		//	Transform2D xform = _canvas_get_transform(p_viewport, canvas, &E.value, clip_rect.size);
+		//	RSG::canvas->render_canvas(p_viewport->render_target, canvas, xform, nullptr, nullptr, clip_rect, p_viewport->texture_filter, p_viewport->texture_repeat, p_viewport->snap_2d_transforms_to_pixel, p_viewport->snap_2d_vertices_to_pixel, p_viewport->canvas_cull_mask, &p_viewport->render_info);
+		//}
 
+		//RENDER_TIMESTAMP("Cull 2D Lights");
+		
 		for (KeyValue<RID, Viewport::CanvasData> &E : p_viewport->canvas_map) {
-			RendererCanvasCull::Canvas *canvas = static_cast<RendererCanvasCull::Canvas *>(E.value.canvas);
-			Transform2D xform = _canvas_get_transform(p_viewport, canvas, &E.value, clip_rect.size);
+			canvas_map[Viewport::CanvasKey(E.key, E.value.layer, E.value.sublayer)] = &E.value;
+		}
+
+
+		for (const KeyValue<Viewport::CanvasKey, Viewport::CanvasData *> &E : canvas_map) {
+			RendererCanvasCull::Canvas *canvas = static_cast<RendererCanvasCull::Canvas *>(E.value->canvas);
+			Transform2D xform = _canvas_get_transform(p_viewport, canvas, E.value, clip_rect.size);
 			RSG::canvas->render_canvas(p_viewport->render_target, canvas, xform, nullptr, nullptr, clip_rect, p_viewport->texture_filter, p_viewport->texture_repeat, p_viewport->snap_2d_transforms_to_pixel, p_viewport->snap_2d_vertices_to_pixel, p_viewport->canvas_cull_mask, &p_viewport->render_info);
 		}
-		//RENDER_TIMESTAMP("Cull 2D Lights");
-		//for (KeyValue<RID, Viewport::CanvasData> &E : p_viewport->canvas_map) {
-		//	canvas_map[Viewport::CanvasKey(E.key, E.value.layer, E.value.sublayer)] = &E.value;
-		//}
-
-
-		//for (const KeyValue<Viewport::CanvasKey, Viewport::CanvasData *> &E : canvas_map) {
-			//RendererCanvasCull::Canvas *canvas = static_cast<RendererCanvasCull::Canvas *>(E.value->canvas);
-
-			//Transform2D xform = _canvas_get_transform(p_viewport, canvas, E.value, clip_rect.size);
-
-			//RSG::canvas->render_canvas(p_viewport->render_target, canvas, xform, nullptr, nullptr, clip_rect, p_viewport->texture_filter, p_viewport->texture_repeat, p_viewport->snap_2d_transforms_to_pixel, p_viewport->snap_2d_vertices_to_pixel, p_viewport->canvas_cull_mask, &p_viewport->render_info);
-			//if (RSG::canvas->was_sdf_used()) {
-			//	p_viewport->sdf_active = true;
-			//}
-		//}
+	
 	}
 
 	if (RSG::texture_storage->render_target_is_clear_requested(p_viewport->render_target)) {

@@ -48,6 +48,7 @@ private:
 	float expand_margin[4] = {};
 	float texture_margin[4] = {};
 	Rect2 region_rect;
+	Rect2 texture_rect;
 	Ref<Texture2D> texture;
 	bool draw_center = true;
 	Color modulate = Color(1, 1, 1, 1);

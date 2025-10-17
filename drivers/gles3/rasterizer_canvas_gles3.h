@@ -77,6 +77,7 @@ class RasterizerCanvasGLES3 : public RendererCanvasRender {
 
 		FLAGS_FLIP_H = (1 << 30),
 		FLAGS_FLIP_V = (1 << 31),
+		
 	};
 
 	enum {
@@ -220,8 +221,8 @@ public:
 					float ninepatch_margins[4];
 				};
 				float dst_rect[4];
-				float src_rect[4];
-				float pad[2];
+				float uv_rect[4];
+				float uv_repeat[2];
 			};
 			//primitive
 			struct {
@@ -264,7 +265,7 @@ public:
 		uint32_t instance_count = 0;
 		uint32_t instance_buffer_index = 0;
 
-		RID tex;
+		RID texture;
 		RS::CanvasItemTextureFilter filter = RS::CANVAS_ITEM_TEXTURE_FILTER_MAX;
 		RS::CanvasItemTextureRepeat repeat = RS::CANVAS_ITEM_TEXTURE_REPEAT_MAX;
 
@@ -282,10 +283,9 @@ public:
 		Item::Command::Type command_type = Item::Command::TYPE_ANIMATION_SLICE; // Can default to any type that doesn't form a batch.
 		uint32_t primitive_points = 0;
 
-		bool lights_disabled = false;
-
 		bool use_msdf = false;
 		bool use_lcd = false;
+		bool use_region_tile = false;
 	};
 
 	// DataBuffer contains our per-frame data. I.e. the resources that are updated each frame.
@@ -332,7 +332,7 @@ public:
 
 	Item *items[MAX_RENDER_ITEMS];
 
-	RID default_canvas_texture;
+	RID default_texture_white;
 	RID default_canvas_group_material;
 	RID default_canvas_group_shader;
 	RID default_clip_children_material;
@@ -363,7 +363,7 @@ public:
 	void update() override;
 
 	void _bind_canvas_texture(RID p_texture, RS::CanvasItemTextureFilter p_base_filter, RS::CanvasItemTextureRepeat p_base_repeat);
-	void _prepare_canvas_texture(RID p_texture, RS::CanvasItemTextureFilter p_base_filter, RS::CanvasItemTextureRepeat p_base_repeat, uint32_t &r_index, Size2 &r_texpixel_size);
+	void _prepare_canvas_texture(RID p_texture, uint32_t &r_index, Size2 &r_texpixel_size);
 
 	void canvas_render_items(RID p_to_render_target, Item *p_item_list, const Color &p_modulate, Light *p_light_list, Light *p_directional_list, const Transform2D &p_canvas_transform, RS::CanvasItemTextureFilter p_default_filter, RS::CanvasItemTextureRepeat p_default_repeat, bool p_snap_2d_vertices_to_pixel, bool &r_sdf_used, RenderingMethod::RenderInfo *r_render_info = nullptr) override;
 	void _render_items(RID p_to_render_target, int p_item_count, const Transform2D &p_canvas_transform_inverse, Light *p_lights, bool &r_sdf_used, bool p_to_backbuffer = false, RenderingMethod::RenderInfo *r_render_info = nullptr, bool p_backbuffer_has_mipmaps = false);
