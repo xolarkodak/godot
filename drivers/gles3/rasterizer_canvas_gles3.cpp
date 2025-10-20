@@ -669,28 +669,7 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 
 	// TODO: consider making lights a per-batch property and then baking light operations in the shader for better performance.
 	uint32_t lights[4] = { 0, 0, 0, 0 };
-
 	uint16_t light_count = 0;
-
-	{
-		Light *light = p_lights;
-
-		while (light) {
-			if (light->render_index_cache >= 0 && p_item->light_mask & light->item_mask && p_item->z_final >= light->z_min && p_item->z_final <= light->z_max && p_item->global_rect_cache.intersects_transformed(light->xform_cache, light->rect_cache)) {
-				uint32_t light_index = light->render_index_cache;
-				lights[light_count >> 2] |= light_index << ((light_count & 3) * 8);
-
-				light_count++;
-
-				if (light_count == data.max_lights_per_item - 1) {
-					break;
-				}
-			}
-			light = light->next_ptr;
-		}
-
-		base_flags |= light_count << FLAGS_LIGHT_COUNT_SHIFT;
-	}
 
 	const Item::Command *c = p_item->commands;
 	while (c) {
@@ -725,6 +704,11 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 
 		state.instance_data_array[r_index].flags = base_flags | (state.instance_data_array[r_index == 0 ? 0 : r_index - 1].flags & (FLAGS_DEFAULT_NORMAL_MAP_USED | FLAGS_DEFAULT_SPECULAR_MAP_USED)); // Reset on each command for safety, keep canvastexture binding config.
 
+		// 0: If Blend mode are differend, start a new batch
+		if (p_blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode) {
+			_new_batch(r_batch_broken);
+			state.canvas_instance_batches[state.current_batch_index].blend_mode = p_blend_mode;
+		}
 
 		switch (c->type) {
 			case Item::Command::TYPE_RECT: {
@@ -746,24 +730,20 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					state.canvas_instance_batches[state.current_batch_index].shader_variant = CanvasShaderGLES3::MODE_QUAD;
 				}
 
-
-				GLES3::CanvasShaderData::BlendMode blend_mode = p_blend_mode;
 				mobulated = rect -> modulate * base_color;
 				bool c_use_msdf = rect->flags & CANVAS_RECT_MSDF;
 				bool c_use_region_tile = rect->flags & CANVAS_RECT_REGION_TILE;
 				
 
 				if (bool(rect->flags & CANVAS_RECT_LCD)) {
-					blend_mode = GLES3::CanvasShaderData::BLEND_MODE_LCD;
-				}
-
-				if (blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode || (bool(rect->flags & CANVAS_RECT_LCD) && mobulated != state.canvas_instance_batches[state.current_batch_index].modulate)) {
-					_new_batch(r_batch_broken);
-					state.canvas_instance_batches[state.current_batch_index].texture = rect->texture;
-					state.canvas_instance_batches[state.current_batch_index].command_type = Item::Command::TYPE_RECT;
-					state.canvas_instance_batches[state.current_batch_index].shader_variant = CanvasShaderGLES3::MODE_QUAD;
-					state.canvas_instance_batches[state.current_batch_index].blend_mode = blend_mode;
-					state.canvas_instance_batches[state.current_batch_index].modulate = mobulated;
+					if (state.canvas_instance_batches[state.current_batch_index].blend_mode != GLES3::CanvasShaderData::BLEND_MODE_LCD || mobulated != state.canvas_instance_batches[state.current_batch_index].modulate) {
+						_new_batch(r_batch_broken);
+						state.canvas_instance_batches[state.current_batch_index].texture = rect->texture;
+						state.canvas_instance_batches[state.current_batch_index].command_type = Item::Command::TYPE_RECT;
+						state.canvas_instance_batches[state.current_batch_index].shader_variant = CanvasShaderGLES3::MODE_QUAD;
+						state.canvas_instance_batches[state.current_batch_index].blend_mode = GLES3::CanvasShaderData::BLEND_MODE_LCD;
+						state.canvas_instance_batches[state.current_batch_index].modulate = mobulated;
+					}
 				}
 
 
@@ -791,21 +771,22 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 
 				_prepare_canvas_texture(rect->texture, r_index, texpixel_size);
 
-				Rect2 uv_rect;
-				Rect2 dst_rect;
+
+				Rect2 dst_rect = rect->rect;
+				Rect2 uv_rect = Rect2(0, 0, 1, 1);
+
+				if (dst_rect.size.width < 0.0f) {
+					dst_rect.position.x += dst_rect.size.width;
+					dst_rect.size.width *= -1.0f;
+				}
+
+				if (dst_rect.size.height < 0.0f) {
+					dst_rect.position.y += dst_rect.size.height;
+					dst_rect.size.height *= -1.0f;
+				}
 
 				if (rect->texture.is_valid()) {
-					uv_rect = (rect->flags & CANVAS_RECT_REGION) ? Rect2(rect->texture_rect.position * texpixel_size, rect->texture_rect.size * texpixel_size) : Rect2(0, 0, 1, 1);
-					dst_rect = Rect2(rect->rect.position, rect->rect.size);
-
-					if (dst_rect.size.width < 0.0f) {
-						dst_rect.position.x += dst_rect.size.width;
-						dst_rect.size.width *= -1.0f;
-					}
-					if (dst_rect.size.height < 0.0f) {
-						dst_rect.position.y += dst_rect.size.height;
-						dst_rect.size.height *= -1.0f;
-					}
+					uv_rect = (rect->flags & CANVAS_RECT_REGION) ? Rect2(rect->texture_rect.position * texpixel_size, rect->texture_rect.size * texpixel_size) : uv_rect;
 
 					if (rect->flags & CANVAS_RECT_FLIP_H) {
 						uv_rect.size.x *= -1;
@@ -819,10 +800,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 
 					if (rect->flags & CANVAS_RECT_TRANSPOSE) {
 						state.instance_data_array[r_index].flags |= FLAGS_TRANSPOSE_RECT;
-					}
-
-					if (rect->flags & CANVAS_RECT_CLIP_UV) {
-						state.instance_data_array[r_index].flags |= FLAGS_CLIP_RECT_UV;
 					}
 					
 					if (c_use_region_tile) {
@@ -838,20 +815,8 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 						state.instance_data_array[r_index].color_texture_pixel_size[0] = uv_repeat[0];
 						state.instance_data_array[r_index].color_texture_pixel_size[1] = uv_repeat[1];
 					}
-				} else {
-					dst_rect = Rect2(rect->rect.position, rect->rect.size);
-
-					if (dst_rect.size.width < 0.0f) {
-						dst_rect.position.x += dst_rect.size.width;
-						dst_rect.size.width *= -1.0f;
-					}
-					if (dst_rect.size.height < 0.0f) {
-						dst_rect.position.y += dst_rect.size.height;
-						dst_rect.size.height *= -1.0f;
-					}
-
-					uv_rect = Rect2(0, 0, 1, 1);
 				}
+
 
 				if (c_use_msdf) {
 					state.canvas_instance_batches[state.current_batch_index].use_msdf = true;
@@ -864,7 +829,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					state.canvas_instance_batches[state.current_batch_index].use_lcd = true;
 					state.instance_data_array[r_index].flags |= FLAGS_USE_LCD;
 				}
-
 				
 
 				state.instance_data_array[r_index].modulation[0] = mobulated.r;

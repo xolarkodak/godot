@@ -182,7 +182,7 @@ void ShaderGLES3::_build_variant_code(StringBuilder &builder, uint32_t p_variant
 	builder.append("\n"); //make sure defines begin at newline
 
 	// Default to mediump precision unless specified otherwise.
-	builder.append("precision mediump float;\n");
+	builder.append("precision highp float;\n"); // mediump -> highp  Template Fix
 	builder.append("precision mediump int;\n");
 	if (!RasterizerGLES3::is_gles_over_gl()) {
 		builder.append("precision mediump sampler2D;\n");
