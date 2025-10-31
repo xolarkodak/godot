@@ -1716,7 +1716,7 @@ void RasterizerCanvasGLES3::_bind_canvas_texture(RID p_texture, RS::CanvasItemTe
 	if (p_texture == RID()) {
 		p_texture = default_texture_white;
 	}
-
+	
 	if (state.current_tex == p_texture && state.current_filter_mode == p_base_filter && state.current_repeat_mode == p_base_repeat) {
 		return;
 	}
@@ -1727,18 +1727,27 @@ void RasterizerCanvasGLES3::_bind_canvas_texture(RID p_texture, RS::CanvasItemTe
 
 	GLES3::Texture *texture = texture_storage->get_texture(p_texture);
 
-	if (texture) {
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture->tex_id);
-		texture->gl_set_filter(p_base_filter);
-		texture->gl_set_repeat(p_base_repeat);
-		if (texture->render_target) {
-			texture->render_target->used_in_frame = true;
+	if (!texture) {
+		GLES3::CanvasTexture *ct = texture_storage->get_canvas_texture(p_texture);
+		if (!ct || ct->diffuse == RID()) {
+			texture = texture_storage->get_texture(default_texture_white);
+		} else {
+			texture = texture_storage->get_texture(ct->diffuse);
+
+			if (!texture) {
+				texture = texture_storage->get_texture(default_texture_white);
+			}
 		}
-	} else {
-		texture = texture_storage->get_texture(default_texture_white);
-		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, texture->tex_id);
+	}
+
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture->tex_id);
+	texture->gl_set_filter(p_base_filter);
+	texture->gl_set_repeat(p_base_repeat);
+
+	if (texture->render_target) {
+		texture->render_target->used_in_frame = true;
 	}
 }
 
@@ -1753,8 +1762,19 @@ void RasterizerCanvasGLES3::_prepare_canvas_texture(RID p_texture, uint32_t &r_i
 	GLES3::Texture *texture = texture_storage->get_texture(p_texture);
 
 	if (!texture) {
-		_prepare_canvas_texture(default_texture_white, r_index, r_texpixel_size);
-		return;
+		GLES3::CanvasTexture *ct = texture_storage->get_canvas_texture(p_texture);
+		
+		if (!ct || ct->diffuse == RID()) {
+			_prepare_canvas_texture(default_texture_white, r_index, r_texpixel_size);
+			return;
+		}
+
+		texture = texture_storage->get_texture(ct->diffuse);
+
+		if (!texture) {
+			_prepare_canvas_texture(default_texture_white, r_index, r_texpixel_size);
+			return;
+		}
 	}
 
 	Size2i size_cache = Size2i(texture->width, texture->height);
