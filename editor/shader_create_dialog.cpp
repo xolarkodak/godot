@@ -175,7 +175,7 @@ void vertex() {
 }
 
 void fragment() {
-	COLOR = texture(TEXTURE, UV);
+	COLOR *= texture(TEXTURE, UV);
 }
 )";
 						break;

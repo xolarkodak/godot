@@ -568,16 +568,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 				case GLES3::CanvasShaderData::BLEND_MODE_DISABLED: {
 					// Nothing to do here.
 				} break;
-				case GLES3::CanvasShaderData::BLEND_MODE_LCD: {
-					glBlendEquation(GL_FUNC_ADD);
-					if (state.transparent_render_target) {
-						glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-					} else {
-						glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_ONE_MINUS_SRC_COLOR, GL_ZERO, GL_ONE);
-					}
-					glBlendColor(blend_color.r, blend_color.g, blend_color.b, blend_color.a);
 
-				} break;
 				case GLES3::CanvasShaderData::BLEND_MODE_MIX: {
 					glBlendEquation(GL_FUNC_ADD);
 					if (state.transparent_render_target) {
@@ -585,8 +576,8 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 					} else {
 						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 					}
-
 				} break;
+
 				case GLES3::CanvasShaderData::BLEND_MODE_ADD: {
 					glBlendEquation(GL_FUNC_ADD);
 					if (state.transparent_render_target) {
@@ -594,8 +585,26 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 					} else {
 						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
 					}
-
 				} break;
+
+				case GLES3::CanvasShaderData::BLEND_MODE_MUL: {
+					glBlendEquation(GL_FUNC_ADD);
+					if (state.transparent_render_target) {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_DST_ALPHA, GL_ONE);
+					} else {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
+					}
+				} break;
+			
+				case GLES3::CanvasShaderData::BLEND_MODE_AMPLIFY: {
+					glBlendEquation(GL_FUNC_ADD);
+					if (state.transparent_render_target) {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+					} else {
+						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+					}
+				} break;
+
 				case GLES3::CanvasShaderData::BLEND_MODE_SUB: {
 					glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
 					if (state.transparent_render_target) {
@@ -604,15 +613,24 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 						glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE, GL_ZERO, GL_ONE);
 					}
 				} break;
-				case GLES3::CanvasShaderData::BLEND_MODE_MUL: {
+
+				case GLES3::CanvasShaderData::BLEND_MODE_MIN: {
+					glBlendEquation(GL_MIN);
+				} break;
+
+				case GLES3::CanvasShaderData::BLEND_MODE_MAX: {
+					glBlendEquation(GL_MAX);
+				} break;
+
+				case GLES3::CanvasShaderData::BLEND_MODE_NEGATIVE: {
 					glBlendEquation(GL_FUNC_ADD);
 					if (state.transparent_render_target) {
-						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+						glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 					} else {
-						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
+						glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 					}
-
 				} break;
+
 				case GLES3::CanvasShaderData::BLEND_MODE_PMALPHA: {
 					glBlendEquation(GL_FUNC_ADD);
 					if (state.transparent_render_target) {
@@ -620,9 +638,19 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 					} else {
 						glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 					}
-
 				} break;
+
+				case GLES3::CanvasShaderData::BLEND_MODE_LCD: {
+					glBlendEquation(GL_FUNC_ADD);
+					if (state.transparent_render_target) {
+						glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+					} else {
+						glBlendFuncSeparate(GL_CONSTANT_COLOR, GL_ONE_MINUS_SRC_COLOR, GL_ZERO, GL_ONE);
+					}
+					glBlendColor(blend_color.r, blend_color.g, blend_color.b, blend_color.a);
+				} break;				
 			}
+
 			last_blend_mode = blend_mode;
 			last_blend_color = blend_color;
 		}
