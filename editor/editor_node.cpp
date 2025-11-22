@@ -7399,8 +7399,14 @@ EditorNode::EditorNode() {
 		PackedStringArray renderers = ProjectSettings::get_singleton()->get_custom_property_info().get(StringName("rendering/renderer/rendering_method")).hint_string.split(",", false);
 		for (int i = 0; i < renderers.size(); i++) {
 			String rendering_method = renderers[i];
+
 			_add_renderer_entry(rendering_method, false);
 			renderer->set_item_metadata(i, rendering_method);
+			
+			if (rendering_method != "gl_compatibility") {
+				renderer->set_item_disabled(i, true);
+			}
+
 			// Lowercase for standard comparison.
 			rendering_method = rendering_method.to_lower();
 			if (current_renderer_ps == rendering_method) {

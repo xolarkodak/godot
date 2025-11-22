@@ -258,10 +258,10 @@ void RendererViewport::_draw_viewport(Viewport *p_viewport) {
 		timestamp_vp_map[rt_id] = p_viewport->self;
 	}
 
-	if (OS::get_singleton()->get_current_rendering_method() == "gl_compatibility") {
+	//if (OS::get_singleton()->get_current_rendering_method() == "gl_compatibility") {
 		// This is currently needed for GLES to keep the current window being rendered to up to date
-		DisplayServer::get_singleton()->gl_window_make_current(p_viewport->viewport_to_screen);
-	}
+	DisplayServer::get_singleton()->gl_window_make_current(p_viewport->viewport_to_screen);
+	//}
 
 	/* Camera should always be BEFORE any other 3D */
 
@@ -419,14 +419,14 @@ void RendererViewport::draw_viewports(bool p_swap_buffers) {
 					blit_to_screen_list[vp->viewport_to_screen] = Vector<BlitToScreen>();
 				}
 
-				if (OS::get_singleton()->get_current_rendering_driver_name().begins_with("opengl3")) {
-					Vector<BlitToScreen> blit_to_screen_vec;
-					blit_to_screen_vec.push_back(blit);
-					RSG::rasterizer->blit_render_targets_to_screen(vp->viewport_to_screen, blit_to_screen_vec.ptr(), 1);
-					RSG::rasterizer->gl_end_frame(p_swap_buffers);
-				} else {
-					blit_to_screen_list[vp->viewport_to_screen].push_back(blit);
-				}
+				//if (OS::get_singleton()->get_current_rendering_driver_name().begins_with("opengl3")) {
+				Vector<BlitToScreen> blit_to_screen_vec;
+				blit_to_screen_vec.push_back(blit);
+				RSG::rasterizer->blit_render_targets_to_screen(vp->viewport_to_screen, blit_to_screen_vec.ptr(), 1);
+				RSG::rasterizer->gl_end_frame(p_swap_buffers);
+				//} else {
+				//	blit_to_screen_list[vp->viewport_to_screen].push_back(blit);
+				//}
 			}
 		}
 
