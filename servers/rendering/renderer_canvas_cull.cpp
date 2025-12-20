@@ -1459,20 +1459,23 @@ void RendererCanvasCull::canvas_item_add_texture_rect(RID p_item, const Rect2 &p
 	rect->modulate = p_modulate;
 	rect->rect = p_rect;
 	rect->flags = 0;
+
 	if (p_tile) {
 		rect->flags |= RendererCanvasRender::CANVAS_RECT_TILE;
 		rect->flags |= RendererCanvasRender::CANVAS_RECT_REGION;
 		rect->texture_rect = Rect2(0, 0, ABS(p_rect.size.width), ABS(p_rect.size.height));
 	}
 
-	if (p_rect.size.x < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_H;
+	if (p_rect.size.x < 0.0f) {
 		rect->rect.size.x = -rect->rect.size.x;
+		rect->texture_rect.size.x = -rect->texture_rect.size.x;
 	}
-	if (p_rect.size.y < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_V;
+
+	if (p_rect.size.y < 0.0f) {
 		rect->rect.size.y = -rect->rect.size.y;
+		rect->texture_rect.size.y = -rect->texture_rect.size.y;
 	}
+
 	if (p_transpose) {
 		rect->flags |= RendererCanvasRender::CANVAS_RECT_TRANSPOSE;
 		SWAP(rect->rect.size.x, rect->rect.size.y);
@@ -1495,22 +1498,6 @@ void RendererCanvasCull::canvas_item_add_msdf_texture_rect_region(RID p_item, co
 	rect->texture_rect = p_src_rect;
 	rect->flags = RendererCanvasRender::CANVAS_RECT_REGION | RendererCanvasRender::CANVAS_RECT_MSDF;
 
-	if (p_rect.size.x < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->rect.size.x = -rect->rect.size.x;
-	}
-	if (p_src_rect.size.x < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->texture_rect.size.x = -rect->texture_rect.size.x;
-	}
-	if (p_rect.size.y < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->rect.size.y = -rect->rect.size.y;
-	}
-	if (p_src_rect.size.y < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->texture_rect.size.y = -rect->texture_rect.size.y;
-	}
 	rect->outline = (float)p_outline_size / p_scale / 4.0;
 	rect->px_range = p_px_range;
 }
@@ -1528,23 +1515,6 @@ void RendererCanvasCull::canvas_item_add_lcd_texture_rect_region(RID p_item, con
 
 	rect->texture_rect = p_src_rect;
 	rect->flags = RendererCanvasRender::CANVAS_RECT_REGION | RendererCanvasRender::CANVAS_RECT_LCD;
-
-	if (p_rect.size.x < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->rect.size.x = -rect->rect.size.x;
-	}
-	if (p_src_rect.size.x < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->texture_rect.size.x = -rect->texture_rect.size.x;
-	}
-	if (p_rect.size.y < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->rect.size.y = -rect->rect.size.y;
-	}
-	if (p_src_rect.size.y < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->texture_rect.size.y = -rect->texture_rect.size.y;
-	}
 }
 
 void RendererCanvasCull::canvas_item_add_texture_rect_region(RID p_item, const Rect2 &p_rect, RID p_texture, const Rect2 &p_src_rect, const Color &p_modulate, bool p_transpose, bool p_clip_uv) {
@@ -1560,23 +1530,6 @@ void RendererCanvasCull::canvas_item_add_texture_rect_region(RID p_item, const R
 
 	rect->texture_rect = p_src_rect;
 	rect->flags = RendererCanvasRender::CANVAS_RECT_REGION;
-
-	if (p_rect.size.x < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->rect.size.x = -rect->rect.size.x;
-	}
-	if (p_src_rect.size.x < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_H;
-		rect->texture_rect.size.x = -rect->texture_rect.size.x;
-	}
-	if (p_rect.size.y < 0) {
-		rect->flags |= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->rect.size.y = -rect->rect.size.y;
-	}
-	if (p_src_rect.size.y < 0) {
-		rect->flags ^= RendererCanvasRender::CANVAS_RECT_FLIP_V;
-		rect->texture_rect.size.y = -rect->texture_rect.size.y;
-	}
 
 	if (p_transpose) {
 		rect->flags |= RendererCanvasRender::CANVAS_RECT_TRANSPOSE;

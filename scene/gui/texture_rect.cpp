@@ -39,66 +39,89 @@ void TextureRect::_notification(int p_what) {
 				return;
 			}
 
-			Size2 size;
-			Point2 offset;
-			Rect2 region;
+			Vector2 texture_size = texture->get_size();
+			Rect2 uv_rect, dst_rect;
 			bool tile = false;
 
 			switch (stretch_mode) {
 				case STRETCH_SCALE: {
-					size = get_size();
+					dst_rect.size = get_size()*rect_scale;
+					uv_rect.size = texture_size;
 				} break;
 				case STRETCH_TILE: {
-					size = get_size();
+					dst_rect.size = get_size();
+					uv_rect.size = dst_rect.size;
+					dst_rect.size *= rect_scale;
+					tile = true;
+				} break;
+				case STRETCH_TILE_FIT: {
+					dst_rect.size = get_size();
+					uv_rect.size.x = dst_rect.size.x - Math::fmod(dst_rect.size.x, texture_size.x);
+					uv_rect.size.y = dst_rect.size.y - Math::fmod(dst_rect.size.y, texture_size.y);
+					dst_rect.size *= rect_scale;
 					tile = true;
 				} break;
 				case STRETCH_KEEP: {
-					size = texture->get_size();
+					dst_rect.size = texture_size*rect_scale;
+					uv_rect.size = texture_size;
 				} break;
 				case STRETCH_KEEP_CENTERED: {
-					offset = (get_size() - texture->get_size()) / 2;
-					size = texture->get_size();
+					dst_rect.size = texture_size*rect_scale;
+					dst_rect.position = (get_size() - dst_rect.size) / 2.0f;
+					uv_rect.size = texture_size;
 				} break;
-				case STRETCH_KEEP_ASPECT_CENTERED:
 				case STRETCH_KEEP_ASPECT: {
-					size = get_size();
-					int tex_width = texture->get_width() * size.height / texture->get_height();
-					int tex_height = size.height;
+					dst_rect.size = get_size();
+					uv_rect.size = texture_size;
+					int tex_x = texture_size.x * dst_rect.size.y / texture_size.y;
+					int tex_y = dst_rect.size.y;
 
-					if (tex_width > size.width) {
-						tex_width = size.width;
-						tex_height = texture->get_height() * tex_width / texture->get_width();
+					if (tex_x > dst_rect.size.x) {
+						tex_x = dst_rect.size.x;
+						tex_y = texture_size.y * dst_rect.size.x / texture_size.x;
 					}
 
-					if (stretch_mode == STRETCH_KEEP_ASPECT_CENTERED) {
-						offset.x += (size.width - tex_width) / 2;
-						offset.y += (size.height - tex_height) / 2;
+					dst_rect.size.x = tex_x;
+					dst_rect.size.y = tex_y;
+				} break;
+				case STRETCH_KEEP_ASPECT_CENTERED: {
+					dst_rect.size = get_size()*rect_scale;
+					uv_rect.size = texture_size;
+					int tex_x = texture_size.x * dst_rect.size.y / texture_size.y;
+					int tex_y = dst_rect.size.y;
+
+					if (tex_x > dst_rect.size.x) {
+						tex_x = dst_rect.size.x;
+						tex_y = texture_size.y * dst_rect.size.x / texture_size.x;
 					}
 
-					size.width = tex_width;
-					size.height = tex_height;
+					dst_rect.position.x += (dst_rect.size.x - tex_x) / 2.0f;
+					dst_rect.position.y += (dst_rect.size.y - tex_y) / 2.0f;
+
+					dst_rect.size.x = tex_x;
+					dst_rect.size.y = tex_y;
 				} break;
 				case STRETCH_KEEP_ASPECT_COVERED: {
-					size = get_size();
+					dst_rect.size = get_size()*rect_scale;
 
-					Size2 tex_size = texture->get_size();
-					Size2 scale_size(size.width / tex_size.width, size.height / tex_size.height);
+					Size2 scale_size(dst_rect.size.x / texture_size.width, dst_rect.size.y / texture_size.height);
 					float scale = scale_size.width > scale_size.height ? scale_size.width : scale_size.height;
-					Size2 scaled_tex_size = tex_size * scale;
+					Size2 scaled_tex_size = texture_size * scale;
 
-					region.position = ((scaled_tex_size - size) / scale).abs() / 2.0f;
-					region.size = size / scale;
+					uv_rect.position = ((scaled_tex_size - dst_rect.size) / scale).abs() / 2.0f;
+					uv_rect.size = dst_rect.size / scale;
 				} break;
 			}
 
-			size.width *= hflip ? -1.0f : 1.0f;
-			size.height *= vflip ? -1.0f : 1.0f;
+			dst_rect.position += rect_offset;
 
-			if (region.has_area()) {
-				draw_texture_rect_region(texture, Rect2(offset, size), region);
-			} else {
-				draw_texture_rect(texture, Rect2(offset, size), tile);
-			}
+			uv_rect.size.x *= hflip ? -1.0f : 1.0f;
+			uv_rect.size.y *= vflip ? -1.0f : 1.0f;
+			uv_rect.position += texture_offset;
+			uv_rect.size *= texture_scale;
+
+			draw_texture_rect_region(texture, dst_rect, uv_rect);
+
 		} break;
 		case NOTIFICATION_RESIZED: {
 			update_minimum_size();
@@ -132,40 +155,6 @@ Size2 TextureRect::get_minimum_size() const {
 		}
 	}
 	return Size2();
-}
-
-void TextureRect::_bind_methods() {
-	ClassDB::bind_method(D_METHOD("set_texture", "texture"), &TextureRect::set_texture);
-	ClassDB::bind_method(D_METHOD("get_texture"), &TextureRect::get_texture);
-	ClassDB::bind_method(D_METHOD("set_expand_mode", "expand_mode"), &TextureRect::set_expand_mode);
-	ClassDB::bind_method(D_METHOD("get_expand_mode"), &TextureRect::get_expand_mode);
-	ClassDB::bind_method(D_METHOD("set_flip_h", "enable"), &TextureRect::set_flip_h);
-	ClassDB::bind_method(D_METHOD("is_flipped_h"), &TextureRect::is_flipped_h);
-	ClassDB::bind_method(D_METHOD("set_flip_v", "enable"), &TextureRect::set_flip_v);
-	ClassDB::bind_method(D_METHOD("is_flipped_v"), &TextureRect::is_flipped_v);
-	ClassDB::bind_method(D_METHOD("set_stretch_mode", "stretch_mode"), &TextureRect::set_stretch_mode);
-	ClassDB::bind_method(D_METHOD("get_stretch_mode"), &TextureRect::get_stretch_mode);
-
-	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "expand_mode", PROPERTY_HINT_ENUM, "Keep Size,Ignore Size,Fit Width,Fit Width Proportional,Fit Height,Fit Height Proportional"), "set_expand_mode", "get_expand_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stretch_mode", PROPERTY_HINT_ENUM, "Scale,Tile,Keep,Keep Centered,Keep Aspect,Keep Aspect Centered,Keep Aspect Covered"), "set_stretch_mode", "get_stretch_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flip_h"), "set_flip_h", "is_flipped_h");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flip_v"), "set_flip_v", "is_flipped_v");
-
-	BIND_ENUM_CONSTANT(EXPAND_KEEP_SIZE);
-	BIND_ENUM_CONSTANT(EXPAND_IGNORE_SIZE);
-	BIND_ENUM_CONSTANT(EXPAND_FIT_WIDTH);
-	BIND_ENUM_CONSTANT(EXPAND_FIT_WIDTH_PROPORTIONAL);
-	BIND_ENUM_CONSTANT(EXPAND_FIT_HEIGHT);
-	BIND_ENUM_CONSTANT(EXPAND_FIT_HEIGHT_PROPORTIONAL);
-
-	BIND_ENUM_CONSTANT(STRETCH_SCALE);
-	BIND_ENUM_CONSTANT(STRETCH_TILE);
-	BIND_ENUM_CONSTANT(STRETCH_KEEP);
-	BIND_ENUM_CONSTANT(STRETCH_KEEP_CENTERED);
-	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT);
-	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_CENTERED);
-	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_COVERED);
 }
 
 #ifndef DISABLE_DEPRECATED
@@ -204,6 +193,58 @@ void TextureRect::set_texture(const Ref<Texture2D> &p_tex) {
 
 Ref<Texture2D> TextureRect::get_texture() const {
 	return texture;
+}
+
+void TextureRect::set_texture_offset(const Vector2 &p_offset) {
+	if (texture_offset == p_offset) {
+		return;
+	}
+
+	texture_offset = p_offset;
+	queue_redraw();
+}
+
+Vector2 TextureRect::get_texture_offset() const {
+	return texture_offset;
+}
+
+void TextureRect::set_texture_scale(const Vector2 &p_scale) {
+	if (texture_scale == p_scale) {
+		return;
+	}
+
+	texture_scale = p_scale;
+	queue_redraw();
+}
+
+Vector2 TextureRect::get_texture_scale() const {
+	return texture_scale;
+}
+
+void TextureRect::set_rect_offset(const Vector2 &p_offset) {
+	if (rect_offset == p_offset) {
+		return;
+	}
+
+	rect_offset = p_offset;
+	queue_redraw();
+}
+
+Vector2 TextureRect::get_rect_offset() const {
+	return rect_offset;
+}
+
+void TextureRect::set_rect_scale(const Vector2 &p_scale) {
+	if (rect_scale == p_scale) {
+		return;
+	}
+
+	rect_scale = p_scale;
+	queue_redraw();
+}
+
+Vector2 TextureRect::get_rect_scale() const {
+	return rect_scale;
 }
 
 void TextureRect::set_expand_mode(ExpandMode p_mode) {
@@ -257,6 +298,55 @@ void TextureRect::set_flip_v(bool p_flip) {
 
 bool TextureRect::is_flipped_v() const {
 	return vflip;
+}
+
+void TextureRect::_bind_methods() {
+	ClassDB::bind_method(D_METHOD("set_texture", "texture"), &TextureRect::set_texture);
+	ClassDB::bind_method(D_METHOD("get_texture"), &TextureRect::get_texture);
+	ClassDB::bind_method(D_METHOD("set_texture_offset", "offset"), &TextureRect::set_texture_offset);
+	ClassDB::bind_method(D_METHOD("get_texture_offset"), &TextureRect::get_texture_offset);
+	ClassDB::bind_method(D_METHOD("set_texture_scale", "scale"), &TextureRect::set_texture_scale);
+	ClassDB::bind_method(D_METHOD("get_texture_scale"), &TextureRect::get_texture_scale);
+	ClassDB::bind_method(D_METHOD("set_rect_offset", "offset"), &TextureRect::set_rect_offset);
+	ClassDB::bind_method(D_METHOD("get_rect_offset"), &TextureRect::get_rect_offset);
+	ClassDB::bind_method(D_METHOD("set_rect_scale", "scale"), &TextureRect::set_rect_scale);
+	ClassDB::bind_method(D_METHOD("get_rect_scale"), &TextureRect::get_rect_scale);
+	ClassDB::bind_method(D_METHOD("set_expand_mode", "expand_mode"), &TextureRect::set_expand_mode);
+	ClassDB::bind_method(D_METHOD("get_expand_mode"), &TextureRect::get_expand_mode);
+	ClassDB::bind_method(D_METHOD("set_flip_h", "enable"), &TextureRect::set_flip_h);
+	ClassDB::bind_method(D_METHOD("is_flipped_h"), &TextureRect::is_flipped_h);
+	ClassDB::bind_method(D_METHOD("set_flip_v", "enable"), &TextureRect::set_flip_v);
+	ClassDB::bind_method(D_METHOD("is_flipped_v"), &TextureRect::is_flipped_v);
+	ClassDB::bind_method(D_METHOD("set_stretch_mode", "stretch_mode"), &TextureRect::set_stretch_mode);
+	ClassDB::bind_method(D_METHOD("get_stretch_mode"), &TextureRect::get_stretch_mode);
+
+	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "expand_mode", PROPERTY_HINT_ENUM, "Keep Size,Ignore Size,Fit Width,Fit Width Proportional,Fit Height,Fit Height Proportional"), "set_expand_mode", "get_expand_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stretch_mode", PROPERTY_HINT_ENUM, "Scale,Tile, Tile Fit,Keep,Keep Centered,Keep Aspect,Keep Aspect Centered,Keep Aspect Covered"), "set_stretch_mode", "get_stretch_mode");
+	ADD_GROUP("Texture", "");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_offset", PROPERTY_HINT_NONE, "suffix:px"), "set_texture_offset", "get_texture_offset");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_scale", PROPERTY_HINT_LINK), "set_texture_scale", "get_texture_scale");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flip_h"), "set_flip_h", "is_flipped_h");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flip_v"), "set_flip_v", "is_flipped_v");
+	ADD_GROUP("Rect", "");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "rect_offset", PROPERTY_HINT_NONE, "suffix:px"), "set_rect_offset", "get_rect_offset");
+	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "rect_scale", PROPERTY_HINT_LINK), "set_rect_scale", "get_rect_scale");
+
+	BIND_ENUM_CONSTANT(EXPAND_KEEP_SIZE);
+	BIND_ENUM_CONSTANT(EXPAND_IGNORE_SIZE);
+	BIND_ENUM_CONSTANT(EXPAND_FIT_WIDTH);
+	BIND_ENUM_CONSTANT(EXPAND_FIT_WIDTH_PROPORTIONAL);
+	BIND_ENUM_CONSTANT(EXPAND_FIT_HEIGHT);
+	BIND_ENUM_CONSTANT(EXPAND_FIT_HEIGHT_PROPORTIONAL);
+
+	BIND_ENUM_CONSTANT(STRETCH_SCALE);
+	BIND_ENUM_CONSTANT(STRETCH_TILE);
+	BIND_ENUM_CONSTANT(STRETCH_TILE_FIT);
+	BIND_ENUM_CONSTANT(STRETCH_KEEP);
+	BIND_ENUM_CONSTANT(STRETCH_KEEP_CENTERED);
+	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT);
+	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_CENTERED);
+	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_COVERED);
 }
 
 TextureRect::TextureRect() {

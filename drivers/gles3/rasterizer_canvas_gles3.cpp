@@ -814,16 +814,11 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				}
 
 				if (rect->texture.is_valid()) {
-					uv_rect = (rect->flags & CANVAS_RECT_REGION) ? Rect2(rect->texture_rect.position * texpixel_size, rect->texture_rect.size * texpixel_size) : uv_rect;
+					uv_rect = rect->texture_rect;
 
-					if (rect->flags & CANVAS_RECT_FLIP_H) {
-						uv_rect.size.x *= -1;
-						state.instance_data_array[r_index].flags |= FLAGS_FLIP_H;
-					}
-
-					if (rect->flags & CANVAS_RECT_FLIP_V) {
-						uv_rect.size.y *= -1;
-						state.instance_data_array[r_index].flags |= FLAGS_FLIP_V;
+					if (rect->flags & CANVAS_RECT_REGION) {
+						uv_rect.position *= texpixel_size;
+						uv_rect.size *= texpixel_size;
 					}
 
 					if (rect->flags & CANVAS_RECT_TRANSPOSE) {

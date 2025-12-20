@@ -42,7 +42,7 @@ class Sprite2D : public Node2D {
 	real_t shininess = 0.0;
 
 	bool centered = true;
-	Point2 offset;
+	Vector2 offset;
 
 	bool hflip = false;
 	bool vflip = false;
@@ -71,16 +71,16 @@ public:
 	virtual Dictionary _edit_get_state() const override;
 	virtual void _edit_set_state(const Dictionary &p_state) override;
 
-	virtual void _edit_set_pivot(const Point2 &p_pivot) override;
-	virtual Point2 _edit_get_pivot() const override;
+	virtual void _edit_set_pivot(const Vector2 &p_pivot) override;
+	virtual Vector2 _edit_get_pivot() const override;
 	virtual bool _edit_use_pivot() const override;
-	virtual bool _edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const override;
+	virtual bool _edit_is_selected_on_click(const Vector2 &p_point, double p_tolerance) const override;
 
 	virtual Rect2 _edit_get_rect() const override;
 	virtual bool _edit_use_rect() const override;
 #endif
 
-	bool is_pixel_opaque(const Point2 &p_point) const;
+	bool is_pixel_opaque(const Vector2 &p_point) const;
 
 	void set_texture(const Ref<Texture2D> &p_texture);
 	Ref<Texture2D> get_texture() const;
@@ -88,8 +88,8 @@ public:
 	void set_centered(bool p_center);
 	bool is_centered() const;
 
-	void set_offset(const Point2 &p_offset);
-	Point2 get_offset() const;
+	void set_offset(const Vector2 &p_offset);
+	Vector2 get_offset() const;
 
 	void set_flip_h(bool p_flip);
 	bool is_flipped_h() const;

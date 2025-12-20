@@ -44,12 +44,12 @@ void Sprite2D::_edit_set_state(const Dictionary &p_state) {
 	set_offset(p_state["offset"]);
 }
 
-void Sprite2D::_edit_set_pivot(const Point2 &p_pivot) {
+void Sprite2D::_edit_set_pivot(const Vector2 &p_pivot) {
 	set_offset(get_offset() - p_pivot);
 	set_position(get_transform().xform(p_pivot));
 }
 
-Point2 Sprite2D::_edit_get_pivot() const {
+Vector2 Sprite2D::_edit_get_pivot() const {
 	return Vector2();
 }
 
@@ -57,7 +57,7 @@ bool Sprite2D::_edit_use_pivot() const {
 	return true;
 }
 
-bool Sprite2D::_edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const {
+bool Sprite2D::_edit_is_selected_on_click(const Vector2 &p_point, double p_tolerance) const {
 	return is_pixel_opaque(p_point);
 }
 
@@ -86,29 +86,25 @@ void Sprite2D::_get_rects(Rect2 &r_src_rect, Rect2 &r_dst_rect, bool &r_filter_c
 	}
 
 	Size2 frame_size = base_rect.size / Size2(hframes, vframes);
-	Point2 frame_offset = Point2(frame % hframes, frame / hframes);
+	Vector2 frame_offset = Vector2(frame % hframes, frame / hframes);
 	frame_offset *= frame_size;
 
-	r_src_rect.size = frame_size;
 	r_src_rect.position = base_rect.position + frame_offset;
+	r_src_rect.size = frame_size;
 
-	Point2 dest_offset = offset;
+	Vector2 dest_offset = offset;
 	if (centered) {
 		dest_offset -= frame_size / 2;
 	}
 
 	if (get_viewport() && get_viewport()->is_snap_2d_transforms_to_pixel_enabled()) {
-		dest_offset = (dest_offset + Point2(0.5, 0.5)).floor();
+		dest_offset = (dest_offset + Vector2(0.5, 0.5)).floor();
 	}
 
 	r_dst_rect = Rect2(dest_offset, frame_size);
 
-	if (hflip) {
-		r_dst_rect.size.x = -r_dst_rect.size.x;
-	}
-	if (vflip) {
-		r_dst_rect.size.y = -r_dst_rect.size.y;
-	}
+	r_src_rect.size.x *= hflip ? -1.0f : 1.0f;
+	r_src_rect.size.y *= vflip ? -1.0f : 1.0f;
 }
 
 void Sprite2D::_notification(int p_what) {
@@ -167,7 +163,7 @@ bool Sprite2D::is_centered() const {
 	return centered;
 }
 
-void Sprite2D::set_offset(const Point2 &p_offset) {
+void Sprite2D::set_offset(const Vector2 &p_offset) {
 	if (offset == p_offset) {
 		return;
 	}
@@ -177,7 +173,7 @@ void Sprite2D::set_offset(const Point2 &p_offset) {
 	item_rect_changed();
 }
 
-Point2 Sprite2D::get_offset() const {
+Vector2 Sprite2D::get_offset() const {
 	return offset;
 }
 
@@ -328,12 +324,14 @@ int Sprite2D::get_hframes() const {
 	return hframes;
 }
 
-bool Sprite2D::is_pixel_opaque(const Point2 &p_point) const {
+bool Sprite2D::is_pixel_opaque(const Vector2 &p_point) const {
 	if (texture.is_null()) {
 		return false;
 	}
 
-	if (texture->get_size().width == 0 || texture->get_size().height == 0) {
+	Vector2 texture_size = texture->get_size();
+
+	if (texture_size.x == 0 || texture_size.y == 0) {
 		return false;
 	}
 
@@ -345,35 +343,46 @@ bool Sprite2D::is_pixel_opaque(const Point2 &p_point) const {
 	if (!dst_rect.has_point(p_point)) {
 		return false;
 	}
-
+	
 	Vector2 q = (p_point - dst_rect.position) / dst_rect.size;
+
 	if (hflip) {
 		q.x = 1.0f - q.x;
+		src_rect.size.x = -src_rect.size.x;
 	}
 	if (vflip) {
 		q.y = 1.0f - q.y;
+		src_rect.size.y = -src_rect.size.y;
 	}
+
 	q = q * src_rect.size + src_rect.position;
+
 	TextureRepeat repeat_mode = get_texture_repeat_in_tree();
-	bool is_repeat = repeat_mode == TEXTURE_REPEAT_ENABLED || repeat_mode == TEXTURE_REPEAT_MIRROR;
-	bool is_mirrored_repeat = repeat_mode == TEXTURE_REPEAT_MIRROR;
-	if (is_repeat) {
+	if (repeat_mode == TEXTURE_REPEAT_MIRROR) {
 		int mirror_x = 0;
 		int mirror_y = 0;
-		if (is_mirrored_repeat) {
-			mirror_x = (int)(q.x / texture->get_size().width);
-			mirror_y = (int)(q.y / texture->get_size().height);
-		}
-		q.x = Math::fmod(q.x, texture->get_size().width);
-		q.y = Math::fmod(q.y, texture->get_size().height);
+
+		mirror_x = (int)(q.x / texture_size.x);
+		mirror_y = (int)(q.y / texture_size.y);
+
 		if (mirror_x % 2 == 1) {
-			q.x = texture->get_size().width - q.x - 1;
+			q.x = 2.0f*texture_size.x - q.x;
 		}
+
 		if (mirror_y % 2 == 1) {
-			q.y = texture->get_size().height - q.y - 1;
+			q.y = 2.0f*texture_size.y - q.y;
 		}
-	} else {
-		q = q.min(texture->get_size() - Vector2(1, 1));
+	}
+
+	q.x = Math::fmod(q.x, texture_size.x - 1.0f);
+	q.y = Math::fmod(q.y, texture_size.y - 1.0f);
+
+	if (q.x < 0.0f) {
+		q.x += texture_size.x;
+	}
+
+	if (q.y < 0.0f) {
+		q.y += texture_size.y;
 	}
 
 	return texture->is_pixel_opaque((int)q.x, (int)q.y);
@@ -392,15 +401,15 @@ Rect2 Sprite2D::get_rect() const {
 		s = texture->get_size();
 	}
 
-	s = s / Point2(hframes, vframes);
+	s = s / Vector2(hframes, vframes);
 
-	Point2 ofs = offset;
+	Vector2 ofs = offset;
 	if (centered) {
 		ofs -= Size2(s) / 2;
 	}
 
 	if (get_viewport() && get_viewport()->is_snap_2d_transforms_to_pixel_enabled()) {
-		ofs = (ofs + Point2(0.5, 0.5)).floor();
+		ofs = (ofs + Vector2(0.5, 0.5)).floor();
 	}
 
 	if (s == Size2(0, 0)) {
@@ -479,7 +488,6 @@ void Sprite2D::_bind_methods() {
 	ADD_SIGNAL(MethodInfo("texture_changed"));
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture");
-	ADD_GROUP("Offset", "");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "centered"), "set_centered", "is_centered");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "offset", PROPERTY_HINT_NONE, "suffix:px"), "set_offset", "get_offset");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "flip_h"), "set_flip_h", "is_flipped_h");
