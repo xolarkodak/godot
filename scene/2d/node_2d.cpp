@@ -319,16 +319,7 @@ real_t Node2D::get_global_skew() const {
 
 void Node2D::set_global_rotation(const real_t p_radians) {
 	ERR_THREAD_GUARD;
-	CanvasItem *parent = get_parent_item();
-	if (parent) {
-		Transform2D parent_global_transform = parent->get_global_transform();
-		Transform2D new_transform = parent_global_transform * get_transform();
-		new_transform.set_rotation(p_radians);
-		new_transform = parent_global_transform.affine_inverse() * new_transform;
-		set_rotation(new_transform.get_rotation());
-	} else {
-		set_rotation(p_radians);
-	}
+	set_rotation(p_radians - get_global_transform().get_rotation() + get_rotation());
 }
 
 void Node2D::set_global_rotation_degrees(const real_t p_degrees) {

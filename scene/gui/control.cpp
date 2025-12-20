@@ -1436,6 +1436,16 @@ Point2 Control::get_global_position() const {
 	return get_global_transform().get_origin();
 }
 
+real_t Control::get_global_rotation() const {
+	ERR_READ_THREAD_GUARD_V(0);
+	return get_global_transform().get_rotation();
+}
+
+void Control::set_global_rotation(const real_t p_radians) {
+	ERR_MAIN_THREAD_GUARD;
+	set_rotation(p_radians - get_global_transform().get_rotation() + get_rotation());
+}
+
 Point2 Control::get_screen_position() const {
 	ERR_READ_THREAD_GUARD_V(Point2());
 	ERR_FAIL_COND_V(!is_inside_tree(), Point2());
@@ -3388,31 +3398,33 @@ void Control::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_offset", "offset"), &Control::get_offset);
 	ClassDB::bind_method(D_METHOD("set_anchor_and_offset", "side", "anchor", "offset", "push_opposite_anchor"), &Control::set_anchor_and_offset, DEFVAL(false));
 
-	ClassDB::bind_method(D_METHOD("set_begin", "position"), &Control::set_begin);
-	ClassDB::bind_method(D_METHOD("set_end", "position"), &Control::set_end);
 	ClassDB::bind_method(D_METHOD("set_position", "position", "keep_offsets"), &Control::set_position, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("_set_position", "position"), &Control::_set_position);
+	ClassDB::bind_method(D_METHOD("_set_global_position", "position"), &Control::_set_global_position);
+	ClassDB::bind_method(D_METHOD("set_global_position", "position", "keep_offsets"), &Control::set_global_position, DEFVAL(false));
+	ClassDB::bind_method(D_METHOD("set_rotation", "radians"), &Control::set_rotation);
+	ClassDB::bind_method(D_METHOD("set_rotation_degrees", "degrees"), &Control::set_rotation_degrees);
+	ClassDB::bind_method(D_METHOD("set_global_rotation", "radians"), &Control::set_global_rotation);
+	ClassDB::bind_method(D_METHOD("set_scale", "scale"), &Control::set_scale);
+	ClassDB::bind_method(D_METHOD("set_begin", "position"), &Control::set_begin);
+	ClassDB::bind_method(D_METHOD("set_end", "position"), &Control::set_end);
 	ClassDB::bind_method(D_METHOD("set_size", "size", "keep_offsets"), &Control::set_size, DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("reset_size"), &Control::reset_size);
 	ClassDB::bind_method(D_METHOD("_set_size", "size"), &Control::_set_size);
 	ClassDB::bind_method(D_METHOD("set_custom_minimum_size", "size"), &Control::set_custom_minimum_size);
-	ClassDB::bind_method(D_METHOD("set_global_position", "position", "keep_offsets"), &Control::set_global_position, DEFVAL(false));
-	ClassDB::bind_method(D_METHOD("_set_global_position", "position"), &Control::_set_global_position);
-	ClassDB::bind_method(D_METHOD("set_rotation", "radians"), &Control::set_rotation);
-	ClassDB::bind_method(D_METHOD("set_rotation_degrees", "degrees"), &Control::set_rotation_degrees);
-	ClassDB::bind_method(D_METHOD("set_scale", "scale"), &Control::set_scale);
 	ClassDB::bind_method(D_METHOD("set_pivot_offset", "pivot_offset"), &Control::set_pivot_offset);
-	ClassDB::bind_method(D_METHOD("get_begin"), &Control::get_begin);
-	ClassDB::bind_method(D_METHOD("get_end"), &Control::get_end);
 	ClassDB::bind_method(D_METHOD("get_position"), &Control::get_position);
-	ClassDB::bind_method(D_METHOD("get_size"), &Control::get_size);
+	ClassDB::bind_method(D_METHOD("get_global_position"), &Control::get_global_position);
 	ClassDB::bind_method(D_METHOD("get_rotation"), &Control::get_rotation);
 	ClassDB::bind_method(D_METHOD("get_rotation_degrees"), &Control::get_rotation_degrees);
+	ClassDB::bind_method(D_METHOD("get_global_rotation"), &Control::get_global_rotation);
 	ClassDB::bind_method(D_METHOD("get_scale"), &Control::get_scale);
+	ClassDB::bind_method(D_METHOD("get_begin"), &Control::get_begin);
+	ClassDB::bind_method(D_METHOD("get_end"), &Control::get_end);
+	ClassDB::bind_method(D_METHOD("get_size"), &Control::get_size);
 	ClassDB::bind_method(D_METHOD("get_pivot_offset"), &Control::get_pivot_offset);
 	ClassDB::bind_method(D_METHOD("get_custom_minimum_size"), &Control::get_custom_minimum_size);
 	ClassDB::bind_method(D_METHOD("get_parent_area_size"), &Control::get_parent_area_size);
-	ClassDB::bind_method(D_METHOD("get_global_position"), &Control::get_global_position);
 	ClassDB::bind_method(D_METHOD("get_screen_position"), &Control::get_screen_position);
 	ClassDB::bind_method(D_METHOD("get_rect"), &Control::get_rect);
 	ClassDB::bind_method(D_METHOD("get_global_rect"), &Control::get_global_rect);
@@ -3580,6 +3592,7 @@ void Control::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "global_position", PROPERTY_HINT_NONE, "suffix:px", PROPERTY_USAGE_NONE), "_set_global_position", "get_global_position");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "rotation", PROPERTY_HINT_RANGE, "-360,360,0.1,or_less,or_greater,radians_as_degrees"), "set_rotation", "get_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "rotation_degrees", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_rotation_degrees", "get_rotation_degrees");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "global_rotation", PROPERTY_HINT_NONE, "", PROPERTY_USAGE_NONE), "set_global_rotation", "get_global_rotation");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "scale"), "set_scale", "get_scale");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "pivot_offset", PROPERTY_HINT_NONE, "suffix:px"), "set_pivot_offset", "get_pivot_offset");
 

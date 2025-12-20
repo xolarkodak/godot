@@ -463,6 +463,14 @@ public:
 	Point2 get_position() const;
 	Point2 get_global_position() const;
 	Point2 get_screen_position() const;
+	void set_rotation(real_t p_radians);
+	void set_rotation_degrees(real_t p_degrees);
+	void set_global_rotation(real_t p_degrees);
+	real_t get_rotation() const;
+	real_t get_rotation_degrees() const;
+	real_t get_global_rotation() const;
+	void set_scale(const Vector2 &p_scale);
+	Vector2 get_scale() const;
 
 	void set_size(const Size2 &p_size, bool p_keep_offsets = false);
 	Size2 get_size() const;
@@ -474,12 +482,6 @@ public:
 	Rect2 get_screen_rect() const;
 	Rect2 get_anchorable_rect() const override;
 
-	void set_scale(const Vector2 &p_scale);
-	Vector2 get_scale() const;
-	void set_rotation(real_t p_radians);
-	void set_rotation_degrees(real_t p_degrees);
-	real_t get_rotation() const;
-	real_t get_rotation_degrees() const;
 	void set_pivot_offset(const Vector2 &p_pivot);
 	Vector2 get_pivot_offset() const;
 
