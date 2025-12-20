@@ -673,14 +673,17 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 		state.canvas_instance_batches[state.current_batch_index].filter = texture_filter;
 	}
 
-	if (texture_repeat == RenderingServer::CanvasItemTextureRepeat::CANVAS_ITEM_TEXTURE_REPEAT_ENABLED) {
+	if (texture_repeat != state.canvas_instance_batches[state.current_batch_index].repeat) {
+		_new_batch(r_batch_broken);
 		state.canvas_instance_batches[state.current_batch_index].repeat = texture_repeat;
 	}
 
 	Transform2D base_transform = p_item->final_transform;
+
 	if (p_item->repeat_source_item && (p_repeat_offset.x || p_repeat_offset.y)) {
 		base_transform.columns[2] += p_item->repeat_source_item->final_transform.basis_xform(p_repeat_offset);
 	}
+
 	base_transform = p_canvas_transform_inverse * base_transform;
 
 	Transform2D draw_transform; // Used by transform command
