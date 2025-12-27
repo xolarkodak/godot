@@ -322,7 +322,7 @@ void TextureRect::_bind_methods() {
 
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "texture", PROPERTY_HINT_RESOURCE_TYPE, "Texture2D"), "set_texture", "get_texture");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "expand_mode", PROPERTY_HINT_ENUM, "Keep Size,Ignore Size,Fit Width,Fit Width Proportional,Fit Height,Fit Height Proportional"), "set_expand_mode", "get_expand_mode");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "stretch_mode", PROPERTY_HINT_ENUM, "Scale,Tile, Tile Fit,Keep,Keep Centered,Keep Aspect,Keep Aspect Centered,Keep Aspect Covered"), "set_stretch_mode", "get_stretch_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "stretch_mode", PROPERTY_HINT_ENUM, "Scale,Tile,Keep,Keep Centered,Keep Aspect,Keep Aspect Centered,Keep Aspect Covered,Tile Fit"), "set_stretch_mode", "get_stretch_mode");
 	ADD_GROUP("Texture", "");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_offset", PROPERTY_HINT_NONE, "suffix:px"), "set_texture_offset", "get_texture_offset");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "texture_scale", PROPERTY_HINT_LINK), "set_texture_scale", "get_texture_scale");
@@ -341,12 +341,12 @@ void TextureRect::_bind_methods() {
 
 	BIND_ENUM_CONSTANT(STRETCH_SCALE);
 	BIND_ENUM_CONSTANT(STRETCH_TILE);
-	BIND_ENUM_CONSTANT(STRETCH_TILE_FIT);
 	BIND_ENUM_CONSTANT(STRETCH_KEEP);
 	BIND_ENUM_CONSTANT(STRETCH_KEEP_CENTERED);
 	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT);
 	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_CENTERED);
 	BIND_ENUM_CONSTANT(STRETCH_KEEP_ASPECT_COVERED);
+	BIND_ENUM_CONSTANT(STRETCH_TILE_FIT);
 }
 
 TextureRect::TextureRect() {
