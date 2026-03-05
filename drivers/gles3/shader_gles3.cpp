@@ -181,8 +181,13 @@ void ShaderGLES3::_build_variant_code(StringBuilder &builder, uint32_t p_variant
 	}
 	builder.append("\n"); //make sure defines begin at newline
 
-	// Default to mediump precision unless specified otherwise.
-	builder.append("precision highp float;\n"); // mediump -> highp  Template Fix
+	// Default precision depending on the stage NEED TESTING !!!
+	if (p_stage_type == STAGE_TYPE_VERTEX) {
+		builder.append("precision highp float;\n"); // Default highp precision for Vertex stage
+	} else {
+		builder.append("precision mediump float;\n"); // Default mediump precision for Fragment stage
+	}
+
 	builder.append("precision mediump int;\n");
 	if (!RasterizerGLES3::is_gles_over_gl()) {
 		builder.append("precision mediump sampler2D;\n");
