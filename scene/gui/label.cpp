@@ -316,22 +316,9 @@ inline void draw_glyph(const Glyph &p_gl, const RID &p_canvas, const Color &p_fo
 	}
 }
 
-inline void draw_glyph_shadow(const Glyph &p_gl, const RID &p_canvas, const Color &p_font_shadow_color, int p_shadow_outline_size, const Vector2 &p_ofs, const Vector2 &shadow_ofs) {
-	if (p_gl.font_rid != RID()) {
-		if (p_font_shadow_color.a > 0) {
-			TS->font_draw_glyph(p_gl.font_rid, p_canvas, p_gl.font_size, p_ofs + Vector2(p_gl.x_off, p_gl.y_off) + shadow_ofs, p_gl.index, p_font_shadow_color);
-		}
-		if (p_font_shadow_color.a > 0 && p_shadow_outline_size > 0) {
-			TS->font_draw_glyph_outline(p_gl.font_rid, p_canvas, p_gl.font_size, p_shadow_outline_size, p_ofs + Vector2(p_gl.x_off, p_gl.y_off) + shadow_ofs, p_gl.index, p_font_shadow_color);
-		}
-	}
-}
-
 inline void draw_glyph_outline(const Glyph &p_gl, const RID &p_canvas, const Color &p_font_outline_color, int p_outline_size, const Vector2 &p_ofs) {
 	if (p_gl.font_rid != RID()) {
-		if (p_font_outline_color.a != 0.0 && p_outline_size > 0) {
-			TS->font_draw_glyph_outline(p_gl.font_rid, p_canvas, p_gl.font_size, p_outline_size, p_ofs + Vector2(p_gl.x_off, p_gl.y_off), p_gl.index, p_font_outline_color);
-		}
+		TS->font_draw_glyph_outline(p_gl.font_rid, p_canvas, p_gl.font_size, p_outline_size, p_ofs + Vector2(p_gl.x_off, p_gl.y_off), p_gl.index, p_font_outline_color);
 	}
 }
 
@@ -500,6 +487,24 @@ void Label::_notification(int p_what) {
 				}
 			}
 
+			// Bitmask for draw steps
+			uint8_t steps_draw_mask = 0;
+
+			if (font_shadow_color.a > 0) {
+				steps_draw_mask |= (1 << DRAW_STEP_SHADOW);
+				if (shadow_outline_size > 0) {
+					steps_draw_mask |= (1 << DRAW_STEP_SHADOW_OUTLINE);
+				}
+			}
+			
+			if (outline_size > 0 && font_outline_color.a > 0) {
+				steps_draw_mask |= (1 << DRAW_STEP_OUTLINE);
+			}
+			
+			if (font_color.a > 0) {
+				steps_draw_mask |= (1 << DRAW_STEP_TEXT); // Main text
+			}
+			
 			Vector2 ofs;
 			ofs.y = style->get_offset().y + vbegin;
 			for (int i = lines_skipped; i < last_line; i++) {
@@ -507,13 +512,13 @@ void Label::_notification(int p_what) {
 				ofs.x = 0;
 				ofs.y += TS->shaped_text_get_ascent(lines_rid[i]);
 				switch (horizontal_alignment) {
-					case HORIZONTAL_ALIGNMENT_FILL:
+					case HORIZONTAL_ALIGNMENT_FILL: {
 						if (rtl && autowrap_mode != TextServer::AUTOWRAP_OFF) {
 							ofs.x = int(size.width - style->get_margin(SIDE_RIGHT) - line_size.width);
 						} else {
 							ofs.x = style->get_offset().x;
 						}
-						break;
+					} break;
 					case HORIZONTAL_ALIGNMENT_LEFT: {
 						if (rtl_layout) {
 							ofs.x = int(size.width - style->get_margin(SIDE_RIGHT) - line_size.width);
@@ -542,12 +547,10 @@ void Label::_notification(int p_what) {
 				const Glyph *ellipsis_glyphs = TS->shaped_text_get_ellipsis_glyphs(lines_rid[i]);
 				int ellipsis_gl_size = TS->shaped_text_get_ellipsis_glyph_count(lines_rid[i]);
 
-				// Draw shadow, outline and text. Note: Do not merge this into the single loop iteration, to prevent overlaps.
-				for (int step = DRAW_STEP_SHADOW; step < DRAW_STEP_MAX; step++) {
-					if (step == DRAW_STEP_SHADOW && (font_shadow_color.a == 0)) {
-						continue;
-					}
-					if (step == DRAW_STEP_OUTLINE && (outline_size <= 0 || font_outline_color.a == 0)) {
+				// Draw order: 1) Shadow Outline 2) Shadow 3) Outline 4) Main text
+				// Note: Do not merge this into the single loop iteration, to prevent overlaps.
+				for (int step = DRAW_STEP_SHADOW_OUTLINE; step < DRAW_STEP_MAX; step++) {
+					if (!(steps_draw_mask & (1 << step))) { // Draw step by bitmask
 						continue;
 					}
 
@@ -559,12 +562,19 @@ void Label::_notification(int p_what) {
 							for (int j = 0; j < ellipsis_glyphs[gl_idx].repeat; j++) {
 								bool skip = (trim_chars && ellipsis_glyphs[gl_idx].end > visible_chars) || (trim_glyphs_ltr && (processed_glyphs_step >= visible_glyphs)) || (trim_glyphs_rtl && (processed_glyphs_step < total_glyphs - visible_glyphs));
 								if (!skip) {
-									if (step == DRAW_STEP_SHADOW) {
-										draw_glyph_shadow(ellipsis_glyphs[gl_idx], ci, font_shadow_color, shadow_outline_size, offset_step, shadow_ofs);
-									} else if (step == DRAW_STEP_OUTLINE) {
-										draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_outline_color, outline_size, offset_step);
-									} else if (step == DRAW_STEP_TEXT) {
-										draw_glyph(ellipsis_glyphs[gl_idx], ci, font_color, offset_step);
+									switch (step) {
+										case DRAW_STEP_SHADOW_OUTLINE: {
+											draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_shadow_color, shadow_outline_size, offset_step + shadow_ofs);
+										} break;
+										case DRAW_STEP_SHADOW: {
+											draw_glyph(ellipsis_glyphs[gl_idx], ci, font_shadow_color, offset_step + shadow_ofs);
+										} break;
+										case DRAW_STEP_OUTLINE: {
+											draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_outline_color, outline_size, offset_step);
+										} break;
+										case DRAW_STEP_TEXT: {
+											draw_glyph(ellipsis_glyphs[gl_idx], ci, font_color, offset_step);
+										} break;
 									}
 								}
 								processed_glyphs_step++;
@@ -576,25 +586,28 @@ void Label::_notification(int p_what) {
 					for (int j = 0; j < gl_size; j++) {
 						// Trim when necessary.
 						if (trim_pos >= 0) {
-							if (rtl) {
-								if (j < trim_pos) {
-									continue;
-								}
-							} else {
-								if (j >= trim_pos) {
-									break;
-								}
+							if (rtl && j < trim_pos) {
+								continue;
+							} else if (j >= trim_pos) {
+								break;
 							}
 						}
 						for (int k = 0; k < glyphs[j].repeat; k++) {
 							bool skip = (trim_chars && glyphs[j].end > visible_chars) || (trim_glyphs_ltr && (processed_glyphs_step >= visible_glyphs)) || (trim_glyphs_rtl && (processed_glyphs_step < total_glyphs - visible_glyphs));
 							if (!skip) {
-								if (step == DRAW_STEP_SHADOW) {
-									draw_glyph_shadow(glyphs[j], ci, font_shadow_color, shadow_outline_size, offset_step, shadow_ofs);
-								} else if (step == DRAW_STEP_OUTLINE) {
-									draw_glyph_outline(glyphs[j], ci, font_outline_color, outline_size, offset_step);
-								} else if (step == DRAW_STEP_TEXT) {
-									draw_glyph(glyphs[j], ci, font_color, offset_step);
+								switch (step) {
+									case DRAW_STEP_SHADOW_OUTLINE: {
+										draw_glyph_outline(glyphs[j], ci, font_shadow_color, shadow_outline_size, offset_step + shadow_ofs);
+									} break;
+									case DRAW_STEP_SHADOW: {
+										draw_glyph(glyphs[j], ci, font_shadow_color, offset_step + shadow_ofs);
+									} break;
+									case DRAW_STEP_OUTLINE: {
+										draw_glyph_outline(glyphs[j], ci, font_outline_color, outline_size, offset_step);
+									} break;
+									case DRAW_STEP_TEXT: {
+										draw_glyph(glyphs[j], ci, font_color, offset_step);
+									} break;
 								}
 							}
 							processed_glyphs_step++;
@@ -607,12 +620,19 @@ void Label::_notification(int p_what) {
 							for (int j = 0; j < ellipsis_glyphs[gl_idx].repeat; j++) {
 								bool skip = (trim_chars && ellipsis_glyphs[gl_idx].end > visible_chars) || (trim_glyphs_ltr && (processed_glyphs_step >= visible_glyphs)) || (trim_glyphs_rtl && (processed_glyphs_step < total_glyphs - visible_glyphs));
 								if (!skip) {
-									if (step == DRAW_STEP_SHADOW) {
-										draw_glyph_shadow(ellipsis_glyphs[gl_idx], ci, font_shadow_color, shadow_outline_size, offset_step, shadow_ofs);
-									} else if (step == DRAW_STEP_OUTLINE) {
-										draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_outline_color, outline_size, offset_step);
-									} else if (step == DRAW_STEP_TEXT) {
-										draw_glyph(ellipsis_glyphs[gl_idx], ci, font_color, offset_step);
+									switch (step) {
+										case DRAW_STEP_SHADOW_OUTLINE: {
+											draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_shadow_color, shadow_outline_size, offset_step + shadow_ofs);
+										} break;
+										case DRAW_STEP_SHADOW: {
+											draw_glyph(ellipsis_glyphs[gl_idx], ci, font_shadow_color, offset_step + shadow_ofs);
+										} break;
+										case DRAW_STEP_OUTLINE: {
+											draw_glyph_outline(ellipsis_glyphs[gl_idx], ci, font_outline_color, outline_size, offset_step);
+										} break;
+										case DRAW_STEP_TEXT: {
+											draw_glyph(ellipsis_glyphs[gl_idx], ci, font_color, offset_step);
+										} break;
 									}
 								}
 								processed_glyphs_step++;
@@ -1186,18 +1206,17 @@ void Label::_bind_methods() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "structured_text_bidi_override", PROPERTY_HINT_ENUM, "Default,URI,File,Email,List,None,Custom"), "set_structured_text_bidi_override", "get_structured_text_bidi_override");
 	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "structured_text_bidi_override_options"), "set_structured_text_bidi_override_options", "get_structured_text_bidi_override_options");
 
-	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_STYLEBOX, Label, normal_style, "normal");
-	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, Label, line_spacing);
-
 	BIND_THEME_ITEM(Theme::DATA_TYPE_FONT, Label, font);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_FONT_SIZE, Label, font_size);
 	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, Label, font_color);
-	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, Label, font_shadow_color);
-	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_shadow_offset.x, "shadow_offset_x");
-	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_shadow_offset.y, "shadow_offset_y");
 	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, Label, font_outline_color);
+	BIND_THEME_ITEM(Theme::DATA_TYPE_COLOR, Label, font_shadow_color);
+	BIND_THEME_ITEM(Theme::DATA_TYPE_CONSTANT, Label, line_spacing);
 	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_outline_size, "outline_size");
 	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_shadow_outline_size, "shadow_outline_size");
+	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_shadow_offset.x, "shadow_offset_x");
+	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_CONSTANT, Label, font_shadow_offset.y, "shadow_offset_y");
+	BIND_THEME_ITEM_CUSTOM(Theme::DATA_TYPE_STYLEBOX, Label, normal_style, "normal");
 }
 
 Label::Label(const String &p_text) {
