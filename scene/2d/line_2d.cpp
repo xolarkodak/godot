@@ -29,23 +29,587 @@
 /**************************************************************************/
 
 #include "line_2d.h"
-
 #include "core/math/geometry_2d.h"
-#include "line_builder.h"
+
+// Utility method.
+static inline Vector2 interpolate(const Rect2 &r, const Vector2 &v) {
+	return Vector2(
+			Math::lerp(r.position.x, r.position.x + r.get_size().x, v.x),
+			Math::lerp(r.position.y, r.position.y + r.get_size().y, v.y));
+}
 
 Line2D::Line2D() {
 }
 
+void Line2D::shape_build() {
+	if (!shape_dirty) {
+		return;
+	}
+
+	vertices.clear();
+	colors.clear();
+	indices.clear();
+	uvs.clear();
+	// We use the same check earlier
+	// Need at least 2 points to draw a line
+	//if (points.size() < 2 || width == 0.f) {
+	//	return;
+	//}
+
+	//WARN_PRINT("Line2D::build()"); // Debug
+
+	ERR_FAIL_COND(tile_aspect <= 0.f);
+
+	const float hw = width / 2.f;
+	const float hw_sq = hw * hw;
+	const float sharp_limit_sq = sharp_limit * sharp_limit;
+	const int point_count = points.size();
+	const bool wrap_around = closed && point_count > 2;
+
+	_interpolate_color = gradient != nullptr;
+	const bool retrieve_curve = curve != nullptr;
+	const bool distance_required = _interpolate_color || retrieve_curve ||
+			texture_mode == Line2D::LINE_TEXTURE_TILE ||
+			texture_mode == Line2D::LINE_TEXTURE_STRETCH;
+
+	// Initial values
+
+	Vector2 pos0 = points[0];
+	Vector2 pos1 = points[1];
+	Vector2 f0 = (pos1 - pos0).normalized();
+	Vector2 u0 = f0.orthogonal();
+	Vector2 pos_up0 = pos0;
+	Vector2 pos_down0 = pos0;
+
+	Color color0;
+	Color color1;
+
+	float current_distance0 = 0.f;
+	float current_distance1 = 0.f;
+	float total_distance = 0.f;
+
+	float width_factor = 1.f;
+	float modified_hw = hw;
+	if (retrieve_curve) {
+		width_factor = curve->sample_baked(0.f);
+		modified_hw = hw * width_factor;
+	}
+
+	if (distance_required) {
+		// Calculate the total distance.
+		for (int i = 1; i < point_count; ++i) {
+			total_distance += points[i].distance_to(points[i - 1]);
+		}
+		if (wrap_around) {
+			total_distance += points[point_count - 1].distance_to(pos0);
+		} else {
+			// Adjust the total distance.
+			// The line's outer length may be a little higher due to the end caps.
+			if (begin_cap_mode == Line2D::LINE_CAP_BOX || begin_cap_mode == Line2D::LINE_CAP_ROUND) {
+				total_distance += modified_hw;
+			}
+			if (end_cap_mode == Line2D::LINE_CAP_BOX || end_cap_mode == Line2D::LINE_CAP_ROUND) {
+				if (retrieve_curve) {
+					total_distance += hw * curve->sample_baked(1.f);
+				} else {
+					total_distance += hw;
+				}
+			}
+		}
+	}
+
+	if (_interpolate_color) {
+		color0 = gradient->get_color(0);
+	} else {
+		colors.push_back(default_color);
+	}
+
+	float uvx0 = 0.f;
+	float uvx1 = 0.f;
+
+	pos_up0 += u0 * modified_hw;
+	pos_down0 -= u0 * modified_hw;
+
+	// Begin cap
+	if (!wrap_around) {
+		if (begin_cap_mode == Line2D::LINE_CAP_BOX) {
+			// Push back first vertices a little bit.
+			pos_up0 -= f0 * modified_hw;
+			pos_down0 -= f0 * modified_hw;
+
+			current_distance0 += modified_hw;
+			current_distance1 = current_distance0;
+		} else if (begin_cap_mode == Line2D::LINE_CAP_ROUND) {
+			if (texture_mode == Line2D::LINE_TEXTURE_TILE) {
+				uvx0 = width_factor * 0.5f / tile_aspect;
+			} else if (texture_mode == Line2D::LINE_TEXTURE_STRETCH) {
+				uvx0 = width * width_factor / total_distance;
+			}
+			new_arc(pos0, pos_up0 - pos0, -Math_PI, color0, Rect2(0.f, 0.f, uvx0 * 2, 1.f));
+			current_distance0 += modified_hw;
+			current_distance1 = current_distance0;
+		}
+		strip_begin(pos_up0, pos_down0, color0, uvx0);
+	}
+
+	/*
+	 *  pos_up0 ------------- pos_up1 --------------------
+	 *     |                     |
+	 *   pos0 - - - - - - - - - pos1 - - - - - - - - - pos2
+	 *     |                     |
+	 * pos_down0 ------------ pos_down1 ------------------
+	 *
+	 *   i-1                     i                      i+1
+	 */
+
+	// http://labs.hyperandroid.com/tag/opengl-lines
+	// (not the same implementation but visuals help a lot)
+
+	// If the polyline wraps around, then draw two more segments with joints:
+	// The last one, which should normally end with an end cap, and the one that matches the end and the beginning.
+	int segments_count = wrap_around ? point_count : (point_count - 2);
+	// The wraparound case starts with a "fake walk" from the end of the polyline
+	// to its beginning, so that its first joint is correct, without drawing anything.
+	int first_point = wrap_around ? -1 : 1;
+
+	// If the line wraps around, these variables will be used for the final segment.
+	Vector2 first_pos_up, first_pos_down;
+	bool is_first_joint_sharp = false;
+
+	// For each additional segment
+	for (int i = first_point; i <= segments_count; ++i) {
+		pos1 = points[(i == -1) ? point_count - 1 : i % point_count]; // First point.
+		Vector2 pos2 = points[(i + 1) % point_count]; // Second point.
+
+		Vector2 f1 = (pos2 - pos1).normalized();
+		Vector2 u1 = f1.orthogonal();
+
+		// Determine joint orientation.
+		float dp = u0.dot(f1);
+		const Orientation orientation = (dp > 0.f ? UP : DOWN);
+
+		if (distance_required && i >= 1) {
+			current_distance1 += pos0.distance_to(pos1);
+		}
+		if (_interpolate_color) {
+			color1 = gradient->get_color_at_offset(current_distance1 / total_distance);
+		}
+		if (retrieve_curve) {
+			width_factor = curve->sample_baked(current_distance1 / total_distance);
+			modified_hw = hw * width_factor;
+		}
+
+		Vector2 inner_normal0 = u0 * modified_hw;
+		Vector2 inner_normal1 = u1 * modified_hw;
+		if (orientation == DOWN) {
+			inner_normal0 = -inner_normal0;
+			inner_normal1 = -inner_normal1;
+		}
+
+		/*
+		 * ---------------------------
+		 *                        /
+		 * 0                     /    1
+		 *                      /          /
+		 * --------------------x------    /
+		 *                    /          /    (here shown with orientation == DOWN)
+		 *                   /          /
+		 *                  /          /
+		 *                 /          /
+		 *                     2     /
+		 *                          /
+		 */
+
+		// Find inner intersection at the joint.
+		Vector2 corner_pos_in, corner_pos_out;
+		bool is_intersecting = Geometry2D::segment_intersects_segment(
+				pos0 + inner_normal0, pos1 + inner_normal0,
+				pos1 + inner_normal1, pos2 + inner_normal1,
+				&corner_pos_in);
+
+		if (is_intersecting) {
+			// Inner parts of the segments intersect.
+			corner_pos_out = 2.f * pos1 - corner_pos_in;
+		} else {
+			// No intersection, segments are too sharp or they overlap.
+			corner_pos_in = pos1 + inner_normal0;
+			corner_pos_out = pos1 - inner_normal0;
+		}
+
+		Vector2 corner_pos_up, corner_pos_down;
+		if (orientation == UP) {
+			corner_pos_up = corner_pos_in;
+			corner_pos_down = corner_pos_out;
+		} else {
+			corner_pos_up = corner_pos_out;
+			corner_pos_down = corner_pos_in;
+		}
+
+		Line2D::LineJointMode current_joint_mode = joint_mode;
+
+		Vector2 pos_up1, pos_down1;
+		if (is_intersecting) {
+			// Fallback on bevel if sharp angle is too high (because it would produce very long miters).
+			float width_factor_sq = width_factor * width_factor;
+			if (current_joint_mode == Line2D::LINE_JOINT_SHARP && corner_pos_out.distance_squared_to(pos1) / (hw_sq * width_factor_sq) > sharp_limit_sq) {
+				current_joint_mode = Line2D::LINE_JOINT_BEVEL;
+			}
+			if (current_joint_mode == Line2D::LINE_JOINT_SHARP) {
+				// In this case, we won't create joint geometry,
+				// The previous and next line quads will directly share an edge.
+				pos_up1 = corner_pos_up;
+				pos_down1 = corner_pos_down;
+			} else {
+				// Bevel or round
+				if (orientation == UP) {
+					pos_up1 = corner_pos_up;
+					pos_down1 = pos1 - u0 * modified_hw;
+				} else {
+					pos_up1 = pos1 + u0 * modified_hw;
+					pos_down1 = corner_pos_down;
+				}
+			}
+		} else {
+			// No intersection: fallback
+			if (current_joint_mode == Line2D::LINE_JOINT_SHARP) {
+				// There is no fallback implementation for LINE_JOINT_SHARP so switch to the LINE_JOINT_BEVEL.
+				current_joint_mode = Line2D::LINE_JOINT_BEVEL;
+			}
+			pos_up1 = corner_pos_up;
+			pos_down1 = corner_pos_down;
+		}
+
+		// Triangles are clockwise.
+		if (texture_mode == Line2D::LINE_TEXTURE_TILE) {
+			uvx1 = current_distance1 / (width * tile_aspect);
+		} else if (texture_mode == Line2D::LINE_TEXTURE_STRETCH) {
+			uvx1 = current_distance1 / total_distance;
+		}
+
+		// Swap vars for use in the next line.
+		color0 = color1;
+		u0 = u1;
+		f0 = f1;
+		pos0 = pos1;
+		if (is_intersecting) {
+			if (current_joint_mode == Line2D::LINE_JOINT_SHARP) {
+				pos_up0 = pos_up1;
+				pos_down0 = pos_down1;
+			} else {
+				if (orientation == UP) {
+					pos_up0 = corner_pos_up;
+					pos_down0 = pos1 - u1 * modified_hw;
+				} else {
+					pos_up0 = pos1 + u1 * modified_hw;
+					pos_down0 = corner_pos_down;
+				}
+			}
+		} else {
+			pos_up0 = pos1 + u1 * modified_hw;
+			pos_down0 = pos1 - u1 * modified_hw;
+		}
+
+		// End the "fake pass" in the closed line case before the drawing subroutine.
+		if (i == -1) {
+			continue;
+		}
+
+		// For wrap-around polylines, store some kind of start positions of the first joint for the final connection.
+		if (wrap_around && i == 0) {
+			Vector2 first_pos_center = (pos_up1 + pos_down1) / 2;
+			float lerp_factor = 1.0 / width_factor;
+			first_pos_up = first_pos_center.lerp(pos_up1, lerp_factor);
+			first_pos_down = first_pos_center.lerp(pos_down1, lerp_factor);
+			is_first_joint_sharp = current_joint_mode == Line2D::LINE_JOINT_SHARP;
+		}
+
+		// Add current line body quad.
+		if (wrap_around && retrieve_curve && !is_first_joint_sharp && i == segments_count) {
+			// If the width curve is not seamless, we might need to fetch the line's start points to use them for the final connection.
+			Vector2 first_pos_center = (first_pos_up + first_pos_down) / 2;
+			strip_add_quad(first_pos_center.lerp(first_pos_up, width_factor), first_pos_center.lerp(first_pos_down, width_factor), color1, uvx1);
+			return;
+		} else {
+			strip_add_quad(pos_up1, pos_down1, color1, uvx1);
+		}
+
+		// From this point, bu0 and bd0 concern the next segment.
+		// Add joint geometry.
+		if (current_joint_mode != Line2D::LINE_JOINT_SHARP) {
+			/* ________________ cbegin
+			 *               / \
+			 *              /   \
+			 * ____________/_ _ _\ cend
+			 *             |     |
+			 *             |     |
+			 *             |     |
+			 */
+
+			Vector2 cbegin, cend;
+			if (orientation == UP) {
+				cbegin = pos_down1;
+				cend = pos_down0;
+			} else {
+				cbegin = pos_up1;
+				cend = pos_up0;
+			}
+
+			if (current_joint_mode == Line2D::LINE_JOINT_BEVEL && !(wrap_around && i == segments_count)) {
+				strip_add_tri(cend, orientation);
+			} else if (current_joint_mode == Line2D::LINE_JOINT_ROUND && !(wrap_around && i == segments_count)) {
+				Vector2 vbegin = cbegin - pos1;
+				Vector2 vend = cend - pos1;
+				// We want to use vbegin.angle_to(vend) below, which evaluates to
+				// Math::atan2(vbegin.cross(vend), vbegin.dot(vend)) but we need to
+				// calculate this ourselves as we need to check if the cross product
+				// in that calculation ends up being -0.f and flip it if so, effectively
+				// flipping the resulting angle_delta to not return -PI but +PI instead
+				float cross_product = vbegin.cross(vend);
+				float dot_product = vbegin.dot(vend);
+				// Note that we're comparing against -0.f for clarity but 0.f would
+				// match as well, therefore we need the explicit signbit check too.
+				if (cross_product == -0.f && signbit(cross_product)) {
+					cross_product = 0.f;
+				}
+				float angle_delta = Math::atan2(cross_product, dot_product);
+				strip_add_arc(pos1, angle_delta, orientation);
+			}
+
+			if (!is_intersecting) {
+				// In this case the joint is too corrupted to be re-used,
+				// start again the strip with fallback points
+				strip_begin(pos_up0, pos_down0, color1, uvx1);
+			}
+		}
+	}
+
+	// Draw the last (or only) segment, with its end cap logic.
+	if (!wrap_around) {
+		pos1 = points[point_count - 1];
+
+		if (distance_required) {
+			current_distance1 += pos0.distance_to(pos1);
+		}
+		if (_interpolate_color) {
+			color1 = gradient->get_color(gradient->get_point_count() - 1);
+		}
+		if (retrieve_curve) {
+			width_factor = curve->sample_baked(1.f);
+			modified_hw = hw * width_factor;
+		}
+
+		Vector2 pos_up1 = pos1 + u0 * modified_hw;
+		Vector2 pos_down1 = pos1 - u0 * modified_hw;
+
+		// Add extra distance for a box end cap.
+		if (end_cap_mode == Line2D::LINE_CAP_BOX) {
+			pos_up1 += f0 * modified_hw;
+			pos_down1 += f0 * modified_hw;
+
+			current_distance1 += modified_hw;
+		}
+
+		if (texture_mode == Line2D::LINE_TEXTURE_TILE) {
+			uvx1 = current_distance1 / (width * tile_aspect);
+		} else if (texture_mode == Line2D::LINE_TEXTURE_STRETCH) {
+			uvx1 = current_distance1 / total_distance;
+		}
+
+		strip_add_quad(pos_up1, pos_down1, color1, uvx1);
+
+		// Custom drawing for a round end cap.
+		if (end_cap_mode == Line2D::LINE_CAP_ROUND) {
+			// Note: color is not used in case we don't interpolate.
+			Color color = _interpolate_color ? gradient->get_color(gradient->get_point_count() - 1) : Color(0, 0, 0);
+			float dist = 0;
+			if (texture_mode == Line2D::LINE_TEXTURE_TILE) {
+				dist = width_factor / tile_aspect;
+			} else if (texture_mode == Line2D::LINE_TEXTURE_STRETCH) {
+				dist = width * width_factor / total_distance;
+			}
+			new_arc(pos1, pos_up1 - pos1, Math_PI, color, Rect2(uvx1 - 0.5f * dist, 0.f, dist, 1.f));
+		}
+	}
+
+	shape_dirty = false;
+}
+
+void Line2D::strip_begin(Vector2 up, Vector2 down, Color color, float uvx) {
+	int vi = vertices.size();
+
+	vertices.push_back(up);
+	vertices.push_back(down);
+
+	if (_interpolate_color) {
+		colors.push_back(color);
+		colors.push_back(color);
+	}
+
+	if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+		uvs.push_back(Vector2(uvx, 0.f));
+		uvs.push_back(Vector2(uvx, 1.f));
+	}
+
+	_last_index[UP] = vi;
+	_last_index[DOWN] = vi + 1;
+}
+
+void Line2D::strip_add_quad(Vector2 up, Vector2 down, Color color, float uvx) {
+	int vi = vertices.size();
+
+	vertices.push_back(up);
+	vertices.push_back(down);
+
+	if (_interpolate_color) {
+		colors.push_back(color);
+		colors.push_back(color);
+	}
+
+	if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+		uvs.push_back(Vector2(uvx, 0.f));
+		uvs.push_back(Vector2(uvx, 1.f));
+	}
+
+	indices.push_back(_last_index[UP]);
+	indices.push_back(vi + 1);
+	indices.push_back(_last_index[DOWN]);
+	indices.push_back(_last_index[UP]);
+	indices.push_back(vi);
+	indices.push_back(vi + 1);
+
+	_last_index[UP] = vi;
+	_last_index[DOWN] = vi + 1;
+}
+
+void Line2D::strip_add_tri(Vector2 up, Orientation orientation) {
+	int vi = vertices.size();
+
+	vertices.push_back(up);
+
+	if (_interpolate_color) {
+		colors.push_back(colors[colors.size() - 1]);
+	}
+
+	Orientation opposite_orientation = orientation == UP ? DOWN : UP;
+
+	if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+		// UVs are just one slice of the texture all along
+		// (otherwise we can't share the bottom vertex)
+		uvs.push_back(uvs[_last_index[opposite_orientation]]);
+	}
+
+	indices.push_back(_last_index[opposite_orientation]);
+	indices.push_back(vi);
+	indices.push_back(_last_index[orientation]);
+
+	_last_index[opposite_orientation] = vi;
+}
+
+void Line2D::strip_add_arc(Vector2 center, float angle_delta, Orientation orientation) {
+	// Take the two last vertices and extrude an arc made of triangles
+	// that all share one of the initial vertices
+
+	Orientation opposite_orientation = orientation == UP ? DOWN : UP;
+	Vector2 vbegin = vertices[_last_index[opposite_orientation]] - center;
+	float radius = vbegin.length();
+	float angle_step = Math_PI / static_cast<float>(round_precision);
+	float steps = Math::abs(angle_delta) / angle_step;
+
+	if (angle_delta < 0.f) {
+		angle_step = -angle_step;
+	}
+
+	float t = Vector2(1, 0).angle_to(vbegin);
+	float end_angle = t + angle_delta;
+	Vector2 rpos(0, 0);
+
+	// Arc vertices
+	for (int ti = 0; ti < steps; ++ti, t += angle_step) {
+		rpos = center + Vector2(Math::cos(t), Math::sin(t)) * radius;
+		strip_add_tri(rpos, orientation);
+	}
+
+	// Last arc vertex
+	rpos = center + Vector2(Math::cos(end_angle), Math::sin(end_angle)) * radius;
+	strip_add_tri(rpos, orientation);
+}
+
+void Line2D::new_arc(Vector2 center, Vector2 vbegin, float angle_delta, Color color, Rect2 uv_rect) {
+	// Make a standalone arc that doesn't use existing vertices,
+	// with undistorted UVs from within a square section
+
+	float radius = vbegin.length();
+	float angle_step = Math_PI / static_cast<float>(round_precision);
+	float steps = Math::abs(angle_delta) / angle_step;
+
+	if (angle_delta < 0.f) {
+		angle_step = -angle_step;
+	}
+
+	float t = Vector2(1, 0).angle_to(vbegin);
+	float end_angle = t + angle_delta;
+	Vector2 rpos(0, 0);
+	float tt_begin = -Math_PI / 2.0f;
+	float tt = tt_begin;
+
+	// Center vertice
+	int vi = vertices.size();
+	vertices.push_back(center);
+	if (_interpolate_color) {
+		colors.push_back(color);
+	}
+	if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+		uvs.push_back(interpolate(uv_rect, Vector2(0.5f, 0.5f)));
+	}
+
+	// Arc vertices
+	for (int ti = 0; ti < steps; ++ti, t += angle_step) {
+		Vector2 sc = Vector2(Math::cos(t), Math::sin(t));
+		rpos = center + sc * radius;
+
+		vertices.push_back(rpos);
+		if (_interpolate_color) {
+			colors.push_back(color);
+		}
+		if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+			Vector2 tsc = Vector2(Math::cos(tt), Math::sin(tt));
+			uvs.push_back(interpolate(uv_rect, 0.5f * (tsc + Vector2(1.f, 1.f))));
+			tt += angle_step;
+		}
+	}
+
+	// Last arc vertex
+	Vector2 sc = Vector2(Math::cos(end_angle), Math::sin(end_angle));
+	rpos = center + sc * radius;
+	vertices.push_back(rpos);
+	if (_interpolate_color) {
+		colors.push_back(color);
+	}
+	if (texture_mode != Line2D::LINE_TEXTURE_NONE) {
+		tt = tt_begin + angle_delta;
+		Vector2 tsc = Vector2(Math::cos(tt), Math::sin(tt));
+		uvs.push_back(interpolate(uv_rect, 0.5f * (tsc + Vector2(1.f, 1.f))));
+	}
+
+	// Make up triangles
+	int vi0 = vi;
+	for (int ti = 0; ti < steps; ++ti) {
+		indices.push_back(vi0);
+		indices.push_back(++vi);
+		indices.push_back(vi + 1);
+	}
+}
+
 #ifdef TOOLS_ENABLED
 Rect2 Line2D::_edit_get_rect() const {
-	if (_points.size() == 0) {
+	if (points.size() == 0) {
 		return Rect2(0, 0, 0, 0);
 	}
-	Vector2 d = Vector2(_width, _width);
-	Rect2 bounding_rect = Rect2(_points[0] - d, 2 * d);
-	for (int i = 1; i < _points.size(); i++) {
-		bounding_rect.expand_to(_points[i] - d);
-		bounding_rect.expand_to(_points[i] + d);
+	Vector2 d = Vector2(width, width);
+	Rect2 bounding_rect = Rect2(points[0] - d, 2 * d);
+	for (int i = 1; i < points.size(); i++) {
+		bounding_rect.expand_to(points[i] - d);
+		bounding_rect.expand_to(points[i] + d);
 	}
 	return bounding_rect;
 }
@@ -55,16 +619,15 @@ bool Line2D::_edit_use_rect() const {
 }
 
 bool Line2D::_edit_is_selected_on_click(const Point2 &p_point, double p_tolerance) const {
-	const real_t d = _width / 2 + p_tolerance;
-	const Vector2 *points = _points.ptr();
-	for (int i = 0; i < _points.size() - 1; i++) {
+	const real_t d = width / 2 + p_tolerance;
+	for (int i = 0; i < points.size() - 1; i++) {
 		Vector2 p = Geometry2D::get_closest_point_to_segment(p_point, &points[i]);
 		if (p_point.distance_to(p) <= d) {
 			return true;
 		}
 	}
-	if (_closed && _points.size() > 2) {
-		const Vector2 closing_segment[2] = { points[0], points[_points.size() - 1] };
+	if (closed && points.size() > 2) {
+		const Vector2 closing_segment[2] = { points[0], points[points.size() - 1] };
 		Vector2 p = Geometry2D::get_closest_point_to_segment(p_point, closing_segment);
 		if (p_point.distance_to(p) <= d) {
 			return true;
@@ -76,119 +639,128 @@ bool Line2D::_edit_is_selected_on_click(const Point2 &p_point, double p_toleranc
 #endif
 
 void Line2D::set_points(const Vector<Vector2> &p_points) {
-	_points = p_points;
+	points = p_points;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 void Line2D::set_closed(bool p_closed) {
-	_closed = p_closed;
+	closed = p_closed;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 bool Line2D::is_closed() const {
-	return _closed;
+	return closed;
 }
 
 void Line2D::set_width(float p_width) {
 	if (p_width < 0.0) {
 		p_width = 0.0;
 	}
-	_width = p_width;
+	width = p_width;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 float Line2D::get_width() const {
-	return _width;
+	return width;
 }
 
 void Line2D::set_curve(const Ref<Curve> &p_curve) {
-	if (_curve.is_valid()) {
-		_curve->disconnect_changed(callable_mp(this, &Line2D::_curve_changed));
+	if (curve.is_valid()) {
+		curve->disconnect_changed(callable_mp(this, &Line2D::_curve_changed));
 	}
 
-	_curve = p_curve;
+	curve = p_curve;
 
-	if (_curve.is_valid()) {
-		_curve->connect_changed(callable_mp(this, &Line2D::_curve_changed));
+	if (curve.is_valid()) {
+		curve->connect_changed(callable_mp(this, &Line2D::_curve_changed));
 	}
 
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Ref<Curve> Line2D::get_curve() const {
-	return _curve;
+	return curve;
 }
 
 Vector<Vector2> Line2D::get_points() const {
-	return _points;
+	return points;
 }
 
 void Line2D::set_point_position(int i, Vector2 p_pos) {
-	ERR_FAIL_INDEX(i, _points.size());
-	_points.set(i, p_pos);
+	ERR_FAIL_INDEX(i, points.size());
+	points.set(i, p_pos);
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Vector2 Line2D::get_point_position(int i) const {
-	ERR_FAIL_INDEX_V(i, _points.size(), Vector2());
-	return _points.get(i);
+	ERR_FAIL_INDEX_V(i, points.size(), Vector2());
+	return points.get(i);
 }
 
 int Line2D::get_point_count() const {
-	return _points.size();
+	return points.size();
 }
 
 void Line2D::clear_points() {
-	int count = _points.size();
-	if (count > 0) {
-		_points.clear();
+	if (points.size() > 0) {
+		points.clear();
 		queue_redraw();
 	}
 }
 
 void Line2D::add_point(Vector2 p_pos, int p_atpos) {
-	if (p_atpos < 0 || _points.size() < p_atpos) {
-		_points.push_back(p_pos);
+	if (p_atpos < 0 || points.size() < p_atpos) {
+		points.push_back(p_pos);
 	} else {
-		_points.insert(p_atpos, p_pos);
+		points.insert(p_atpos, p_pos);
 	}
+	shape_dirty = true;
 	queue_redraw();
 }
 
 void Line2D::remove_point(int i) {
-	_points.remove_at(i);
+	points.remove_at(i);
+	shape_dirty = true;
 	queue_redraw();
 }
 
 void Line2D::set_default_color(Color p_color) {
-	_default_color = p_color;
+	default_color = p_color;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Color Line2D::get_default_color() const {
-	return _default_color;
+	return default_color;
 }
 
 void Line2D::set_gradient(const Ref<Gradient> &p_gradient) {
-	if (_gradient.is_valid()) {
-		_gradient->disconnect_changed(callable_mp(this, &Line2D::_gradient_changed));
+	if (gradient.is_valid()) {
+		gradient->disconnect_changed(callable_mp(this, &Line2D::_gradient_changed));
 	}
 
-	_gradient = p_gradient;
+	gradient = p_gradient;
 
-	if (_gradient.is_valid()) {
-		_gradient->connect_changed(callable_mp(this, &Line2D::_gradient_changed));
+	if (gradient.is_valid()) {
+		gradient->connect_changed(callable_mp(this, &Line2D::_gradient_changed));
 	}
 
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Ref<Gradient> Line2D::get_gradient() const {
-	return _gradient;
+	return gradient;
 }
 
 void Line2D::set_texture(const Ref<Texture2D> &p_texture) {
 	_texture = p_texture;
+	shape_dirty = true;
 	queue_redraw();
 }
 
@@ -197,39 +769,66 @@ Ref<Texture2D> Line2D::get_texture() const {
 }
 
 void Line2D::set_texture_mode(const LineTextureMode p_mode) {
-	_texture_mode = p_mode;
+	texture_mode = p_mode;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Line2D::LineTextureMode Line2D::get_texture_mode() const {
-	return _texture_mode;
+	return texture_mode;
 }
 
 void Line2D::set_joint_mode(LineJointMode p_mode) {
-	_joint_mode = p_mode;
+	joint_mode = p_mode;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Line2D::LineJointMode Line2D::get_joint_mode() const {
-	return _joint_mode;
+	return joint_mode;
 }
 
 void Line2D::set_begin_cap_mode(LineCapMode p_mode) {
-	_begin_cap_mode = p_mode;
+	begin_cap_mode = p_mode;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Line2D::LineCapMode Line2D::get_begin_cap_mode() const {
-	return _begin_cap_mode;
+	return begin_cap_mode;
 }
 
 void Line2D::set_end_cap_mode(LineCapMode p_mode) {
-	_end_cap_mode = p_mode;
+	end_cap_mode = p_mode;
+	shape_dirty = true;
 	queue_redraw();
 }
 
 Line2D::LineCapMode Line2D::get_end_cap_mode() const {
-	return _end_cap_mode;
+	return end_cap_mode;
+}
+
+void Line2D::set_sharp_limit(float p_limit) {
+	if (p_limit < 0.f) {
+		p_limit = 0.f;
+	}
+	sharp_limit = p_limit;
+	shape_dirty = true;
+	queue_redraw();
+}
+
+float Line2D::get_sharp_limit() const {
+	return sharp_limit;
+}
+
+void Line2D::set_round_precision(int p_precision) {
+	round_precision = MAX(1, p_precision);
+	shape_dirty = true;
+	queue_redraw();
+}
+
+int Line2D::get_round_precision() const {
+	return round_precision;
 }
 
 void Line2D::_notification(int p_what) {
@@ -240,73 +839,28 @@ void Line2D::_notification(int p_what) {
 	}
 }
 
-void Line2D::set_sharp_limit(float p_limit) {
-	if (p_limit < 0.f) {
-		p_limit = 0.f;
-	}
-	_sharp_limit = p_limit;
-	queue_redraw();
-}
-
-float Line2D::get_sharp_limit() const {
-	return _sharp_limit;
-}
-
-void Line2D::set_round_precision(int p_precision) {
-	_round_precision = MAX(1, p_precision);
-	queue_redraw();
-}
-
-int Line2D::get_round_precision() const {
-	return _round_precision;
-}
-
-void Line2D::set_antialiased(bool p_antialiased) {
-	_antialiased = p_antialiased;
-	queue_redraw();
-}
-
-bool Line2D::get_antialiased() const {
-	return _antialiased;
-}
-
 void Line2D::_draw() {
-	int len = _points.size();
-	if (len <= 1 || _width == 0.f) {
+	// Need at least 2 points to draw a line
+	if (points.size() < 2 || width == 0.f) {
 		return;
 	}
-
-	// TODO Maybe have it as member rather than copying parameters and allocating memory?
-	LineBuilder lb;
-	lb.points = _points;
-	lb.closed = _closed;
-	lb.default_color = _default_color;
-	lb.gradient = *_gradient;
-	lb.texture_mode = _texture_mode;
-	lb.joint_mode = _joint_mode;
-	lb.begin_cap_mode = _begin_cap_mode;
-	lb.end_cap_mode = _end_cap_mode;
-	lb.round_precision = _round_precision;
-	lb.sharp_limit = _sharp_limit;
-	lb.width = _width;
-	lb.curve = *_curve;
 
 	RID texture_rid;
 	if (_texture.is_valid()) {
 		texture_rid = _texture->get_rid();
-
-		lb.tile_aspect = _texture->get_size().aspect();
+		tile_aspect = _texture->get_size().aspect();
 	}
 
-	lb.build();
+	shape_build();
 
 	RS::get_singleton()->canvas_item_add_triangle_array(
-			get_canvas_item(),
-			lb.indices,
-			lb.vertices,
-			lb.colors,
-			lb.uvs, Vector<int>(), Vector<float>(),
-			texture_rid);
+		get_canvas_item(),
+		indices,
+		vertices,
+		colors,
+		uvs, Vector<int>(), Vector<float>(),
+		texture_rid
+	);
 
 	// DEBUG: Draw wireframe
 	//	if (lb.indices.size() % 3 == 0) {
@@ -327,10 +881,12 @@ void Line2D::_draw() {
 }
 
 void Line2D::_gradient_changed() {
+	shape_dirty = true;
 	queue_redraw();
 }
 
 void Line2D::_curve_changed() {
+	shape_dirty = true;
 	queue_redraw();
 }
 
@@ -385,9 +941,6 @@ void Line2D::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_round_precision", "precision"), &Line2D::set_round_precision);
 	ClassDB::bind_method(D_METHOD("get_round_precision"), &Line2D::get_round_precision);
 
-	ClassDB::bind_method(D_METHOD("set_antialiased", "antialiased"), &Line2D::set_antialiased);
-	ClassDB::bind_method(D_METHOD("get_antialiased"), &Line2D::get_antialiased);
-
 	ADD_PROPERTY(PropertyInfo(Variant::PACKED_VECTOR2_ARRAY, "points"), "set_points", "get_points");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "closed"), "set_closed", "is_closed");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "width", PROPERTY_HINT_NONE, "suffix:px"), "set_width", "get_width");
@@ -404,7 +957,6 @@ void Line2D::_bind_methods() {
 	ADD_GROUP("Border", "");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "sharp_limit"), "set_sharp_limit", "get_sharp_limit");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "round_precision", PROPERTY_HINT_RANGE, "1,32,1"), "set_round_precision", "get_round_precision");
-	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "antialiased"), "set_antialiased", "get_antialiased");
 
 	BIND_ENUM_CONSTANT(LINE_JOINT_SHARP);
 	BIND_ENUM_CONSTANT(LINE_JOINT_BEVEL);
