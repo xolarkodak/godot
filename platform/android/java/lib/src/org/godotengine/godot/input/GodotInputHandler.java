@@ -87,9 +87,7 @@ public class GodotInputHandler implements InputManager.InputDeviceListener {
 		this.gestureDetector = new GestureDetector(context, godotGestureHandler);
 		this.gestureDetector.setIsLongpressEnabled(false);
 		this.scaleGestureDetector = new ScaleGestureDetector(context, godotGestureHandler);
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			this.scaleGestureDetector.setStylusScaleEnabled(true);
-		}
+		this.scaleGestureDetector.setStylusScaleEnabled(true);
 	}
 
 	/**
@@ -274,7 +272,7 @@ public class GodotInputHandler implements InputManager.InputDeviceListener {
 			return false;
 		}
 
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && gestureDetector.onGenericMotionEvent(event)) {
+		if (gestureDetector.onGenericMotionEvent(event)) {
 			// The gesture detector has handled the event.
 			return true;
 		}

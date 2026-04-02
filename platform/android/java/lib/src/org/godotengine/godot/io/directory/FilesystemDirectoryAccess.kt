@@ -150,11 +150,7 @@ internal class FilesystemDirectoryAccess(private val context: Context):
 	}
 
 	override fun getDriveCount(): Int {
-		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-			storageManager.storageVolumes.size
-		} else {
-			0
-		}
+		return storageManager.storageVolumes.size
 	}
 
 	override fun getDrive(drive: Int): String {

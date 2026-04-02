@@ -194,12 +194,10 @@ open class GodotEditor : GodotActivity() {
 			.setComponent(ComponentName(this, editorWindowInfo.windowClassName))
 			.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 			.putExtra(EXTRA_COMMAND_LINE_PARAMS, args)
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-			if (editorWindowInfo.launchAdjacentPolicy == LaunchAdjacentPolicy.ENABLED ||
-				(editorWindowInfo.launchAdjacentPolicy == LaunchAdjacentPolicy.AUTO && shouldGameLaunchAdjacent())) {
-				Log.v(TAG, "Adding flag for adjacent launch")
-				newInstance.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
-			}
+		if (editorWindowInfo.launchAdjacentPolicy == LaunchAdjacentPolicy.ENABLED ||
+			(editorWindowInfo.launchAdjacentPolicy == LaunchAdjacentPolicy.AUTO && shouldGameLaunchAdjacent())) {
+			Log.v(TAG, "Adding flag for adjacent launch")
+			newInstance.addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT)
 		}
 		if (editorWindowInfo.windowClassName == javaClass.name) {
 			Log.d(TAG, "Restarting ${editorWindowInfo.windowClassName} with parameters ${args.contentToString()}")
@@ -286,7 +284,7 @@ open class GodotEditor : GodotActivity() {
 	 * @see https://developer.android.com/reference/android/content/Intent#FLAG_ACTIVITY_LAUNCH_ADJACENT
 	 */
 	private fun shouldGameLaunchAdjacent(): Boolean {
-		return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+		return {
 			try {
 				when (Integer.parseInt(GodotLib.getEditorSetting("run/window_placement/android_window"))) {
 					ANDROID_WINDOW_SAME_AS_EDITOR -> false
@@ -300,8 +298,6 @@ open class GodotEditor : GodotActivity() {
 				// Fall-back to the 'Auto' behavior
 				isInMultiWindowMode || isLargeScreen
 			}
-		} else {
-			false
 		}
 	}
 

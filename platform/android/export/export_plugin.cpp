@@ -274,8 +274,7 @@ static const int EXPORT_FORMAT_AAB = 1;
 static const char *APK_ASSETS_DIRECTORY = "assets";
 static const char *AAB_ASSETS_DIRECTORY = "assetPackInstallTime/src/main/assets";
 
-static const int OPENGL_MIN_SDK_VERSION = 21; // Should match the value in 'platform/android/java/app/config.gradle#minSdk'
-static const int VULKAN_MIN_SDK_VERSION = 24;
+static const int DEFAULT_MIN_SDK_VERSION = 24; // Should match the value in 'platform/android/java/app/config.gradle#minSdk'
 static const int DEFAULT_TARGET_SDK_VERSION = 35; // Should match the value in 'platform/android/java/app/config.gradle#targetSdk'
 
 #ifndef ANDROID_ENABLED
@@ -1816,7 +1815,6 @@ String EditorExportPlatformAndroid::get_export_option_warning(const EditorExport
 			}
 		} else if (p_name == "gradle_build/min_sdk") {
 			String min_sdk_str = p_preset->get("gradle_build/min_sdk");
-			int min_sdk_int = VULKAN_MIN_SDK_VERSION;
 			bool gradle_build_enabled = p_preset->get("gradle_build/use_gradle_build");
 			if (!min_sdk_str.is_empty()) { // Empty means no override, nothing to do.
 				if (!gradle_build_enabled) {
@@ -1825,9 +1823,9 @@ String EditorExportPlatformAndroid::get_export_option_warning(const EditorExport
 				if (!min_sdk_str.is_valid_int()) {
 					return vformat(TTR("\"Min SDK\" should be a valid integer, but got \"%s\" which is invalid."), min_sdk_str);
 				} else {
-					min_sdk_int = min_sdk_str.to_int();
-					if (min_sdk_int < OPENGL_MIN_SDK_VERSION) {
-						return vformat(TTR("\"Min SDK\" cannot be lower than %d, which is the version needed by the Godot library."), OPENGL_MIN_SDK_VERSION);
+					int min_sdk_int = min_sdk_str.to_int();
+					if (min_sdk_int < DEFAULT_MIN_SDK_VERSION) {
+						return vformat(TTR("\"Min SDK\" cannot be lower than %d, which is the version needed by the Godot library."), DEFAULT_MIN_SDK_VERSION);
 					}
 				}
 			}
@@ -1836,7 +1834,7 @@ String EditorExportPlatformAndroid::get_export_option_warning(const EditorExport
 			int target_sdk_int = DEFAULT_TARGET_SDK_VERSION;
 
 			String min_sdk_str = p_preset->get("gradle_build/min_sdk");
-			int min_sdk_int = VULKAN_MIN_SDK_VERSION;
+			int min_sdk_int = DEFAULT_MIN_SDK_VERSION;
 			if (min_sdk_str.is_valid_int()) {
 				min_sdk_int = min_sdk_str.to_int();
 			}
@@ -1870,7 +1868,7 @@ void EditorExportPlatformAndroid::get_export_options(List<ExportOption> *r_optio
 	r_options->push_back(ExportOption(PropertyInfo(Variant::INT, "gradle_build/export_format", PROPERTY_HINT_ENUM, "Export APK,Export AAB"), EXPORT_FORMAT_APK, false, true));
 	// Using String instead of int to default to an empty string (no override) with placeholder for instructions (see GH-62465).
 	// This implies doing validation that the string is a proper int.
-	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "gradle_build/min_sdk", PROPERTY_HINT_PLACEHOLDER_TEXT, vformat("%d (default)", VULKAN_MIN_SDK_VERSION)), "", false, true));
+	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "gradle_build/min_sdk", PROPERTY_HINT_PLACEHOLDER_TEXT, vformat("%d (default)", DEFAULT_MIN_SDK_VERSION)), "", false, true));
 	r_options->push_back(ExportOption(PropertyInfo(Variant::STRING, "gradle_build/target_sdk", PROPERTY_HINT_PLACEHOLDER_TEXT, vformat("%d (default)", DEFAULT_TARGET_SDK_VERSION)), "", false, true));
 
 #ifndef DISABLE_DEPRECATED
@@ -2643,14 +2641,6 @@ bool EditorExportPlatformAndroid::has_valid_project_configuration(const Ref<Edit
 		}
 	}
 
-	String min_sdk_str = p_preset->get("gradle_build/min_sdk");
-	int min_sdk_int = VULKAN_MIN_SDK_VERSION;
-	if (!min_sdk_str.is_empty()) { // Empty means no override, nothing to do.
-		if (min_sdk_str.is_valid_int()) {
-			min_sdk_int = min_sdk_str.to_int();
-		}
-	}
-
 	String target_sdk_str = p_preset->get("gradle_build/target_sdk");
 	int target_sdk_int = DEFAULT_TARGET_SDK_VERSION;
 	if (!target_sdk_str.is_empty()) { // Empty means no override, nothing to do.
@@ -2668,12 +2658,6 @@ bool EditorExportPlatformAndroid::has_valid_project_configuration(const Ref<Edit
 	if (current_renderer == "forward_plus") {
 		// Warning only, so don't override `valid`.
 		err += vformat(TTR("The \"%s\" renderer is designed for Desktop devices, and is not suitable for Android devices."), current_renderer);
-		err += "\n";
-	}
-
-	if (_uses_vulkan() && min_sdk_int < VULKAN_MIN_SDK_VERSION) {
-		// Warning only, so don't override `valid`.
-		err += vformat(TTR("\"Min SDK\" should be greater or equal to %d for the \"%s\" renderer."), VULKAN_MIN_SDK_VERSION, current_renderer);
 		err += "\n";
 	}
 
@@ -3190,7 +3174,7 @@ Error EditorExportPlatformAndroid::export_project_helper(const Ref<EditorExportP
 		String version_name = p_preset->get_version("version/name");
 		String min_sdk_version = p_preset->get("gradle_build/min_sdk");
 		if (!min_sdk_version.is_valid_int()) {
-			min_sdk_version = itos(VULKAN_MIN_SDK_VERSION);
+			min_sdk_version = itos(DEFAULT_MIN_SDK_VERSION);
 		}
 		String target_sdk_version = p_preset->get("gradle_build/target_sdk");
 		if (!target_sdk_version.is_valid_int()) {
