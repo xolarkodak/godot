@@ -212,7 +212,7 @@ class Godot(private val context: Context) : SensorEventListener {
 			Log.v(TAG, "Initializing Godot plugin registry")
 			GodotPluginRegistry.initializePluginRegistry(this, primaryHost.getHostPlugins(this))
 			if (io == null) {
-				io = GodotIO(activity)
+				io = GodotIO(this, activity)
 			}
 
 			// check for apk expansion API
@@ -369,6 +369,9 @@ class Godot(private val context: Context) : SensorEventListener {
 		}
 		return isNativeInitialized()
 	}
+
+	@Keep
+	fun isInImmersiveMode() = useImmersive
 
 	/**
 	 * Used to complete initialization of the view used by the engine for rendering.

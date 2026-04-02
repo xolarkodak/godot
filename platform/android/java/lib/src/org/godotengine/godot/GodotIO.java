@@ -47,9 +47,12 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Display;
 import android.view.DisplayCutout;
+import android.view.View;
 import android.view.WindowInsets;
 
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.Insets;
+import androidx.core.view.WindowInsetsCompat;
 
 import java.io.File;
 import java.util.List;
@@ -60,6 +63,7 @@ import java.util.Locale;
 public class GodotIO {
 	private static final String TAG = GodotIO.class.getSimpleName();
 
+	private final Godot godot;
 	private final Activity activity;
 	private final String uniqueId;
 	GodotEditText edit;
@@ -72,7 +76,8 @@ public class GodotIO {
 	final int SCREEN_SENSOR_PORTRAIT = 5;
 	final int SCREEN_SENSOR = 6;
 
-	GodotIO(Activity p_activity) {
+	GodotIO(Godot godot, Activity p_activity) {
+		this.godot = godot;
 		activity = p_activity;
 		String androidId = Settings.Secure.getString(activity.getContentResolver(),
 				Settings.Secure.ANDROID_ID);
@@ -179,21 +184,32 @@ public class GodotIO {
 
 	public int[] getDisplaySafeArea() {
 		Rect rect = new Rect();
-		activity.getWindow().getDecorView().getWindowVisibleDisplayFrame(rect);
+		int[] result = new int[4];
 
-		int[] result = { rect.left, rect.top, rect.right, rect.bottom };
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-			WindowInsets insets = activity.getWindow().getDecorView().getRootWindowInsets();
-			DisplayCutout cutout = insets.getDisplayCutout();
-			if (cutout != null) {
-				int insetLeft = cutout.getSafeInsetLeft();
-				int insetTop = cutout.getSafeInsetTop();
-				result[0] = insetLeft;
-				result[1] = insetTop;
-				result[2] -= insetLeft + cutout.getSafeInsetRight();
-				result[3] -= insetTop + cutout.getSafeInsetBottom();
+		View topView = null;
+		if (activity != null) {
+			topView = activity.getWindow().getDecorView();
+		}
+		
+		if (topView != null) {
+			int insetTypes;
+			if (godot.isInImmersiveMode()) {
+				insetTypes = WindowInsetsCompat.Type.displayCutout();
+			} else {
+				insetTypes = WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout();
+			}
+
+			if (topView.getRootWindowInsets() != null) {
+				WindowInsetsCompat insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(topView.getRootWindowInsets(), topView);
+				Insets insets = insetsCompat.getInsets(insetTypes);
+
+				result[0] = insets.left;
+				result[1] = insets.top;
+				result[2] = topView.getWidth() - insets.right - insets.left;
+				result[3] = topView.getHeight() - insets.bottom - insets.top;
 			}
 		}
+
 		return result;
 	}
 
