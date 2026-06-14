@@ -194,7 +194,7 @@ void main() {
 #endif // USE_REGION_TILE
 
 	vec4 color = read_draw_data_modulation;
-	vec2 vertex = dst_rect.xy + abs(dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(uv_rect.zw, vec2(0.0, 0.0)));
+	vec2 vertex = dst_rect.xy + dst_rect.zw * vertex_base;
 	//vec2 vertex = dst_rect.xy + dst_rect.zw*vertex_base;
 
 

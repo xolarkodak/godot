@@ -31,41 +31,43 @@
 #include "atlas_texture.h"
 
 int AtlasTexture::get_width() const {
-	if (region.size.width == 0) {
-		if (atlas.is_valid()) {
-			return atlas->get_width();
-		}
+	if (atlas.is_null()) {
 		return 1;
-	} else {
+	}
+
+	if (region.size.width != 0) {
 		return region.size.width + margin.size.width;
 	}
+
+	return atlas->get_width();
 }
 
 int AtlasTexture::get_height() const {
-	if (region.size.height == 0) {
-		if (atlas.is_valid()) {
-			return atlas->get_height();
-		}
+	if (atlas.is_null()) {
 		return 1;
-	} else {
+	}
+
+	if (region.size.height != 0) {
 		return region.size.height + margin.size.height;
 	}
+	
+	return atlas->get_height();
 }
 
 RID AtlasTexture::get_rid() const {
-	if (atlas.is_valid()) {
-		return atlas->get_rid();
+	if (atlas.is_null()) {
+		return RID();
 	}
 
-	return RID();
+	return atlas->get_rid();
 }
 
 bool AtlasTexture::has_alpha() const {
-	if (atlas.is_valid()) {
-		return atlas->has_alpha();
+	if (atlas.is_null()) {
+		return false;
 	}
 
-	return false;
+	return atlas->has_alpha();
 }
 
 void AtlasTexture::set_atlas(const Ref<Texture2D> &p_atlas) {
@@ -123,14 +125,16 @@ bool AtlasTexture::has_filter_clip() const {
 }
 
 Rect2 AtlasTexture::_get_region_rect() const {
+	if (atlas.is_null()) {
+		return Rect2();
+	}
+
 	Rect2 rc = region;
-	if (atlas.is_valid()) {
-		if (rc.size.width == 0) {
-			rc.size.width = atlas->get_width();
-		}
-		if (rc.size.height == 0) {
-			rc.size.height = atlas->get_height();
-		}
+	if (rc.size.width == 0) {
+		rc.size.width = atlas->get_width();
+	}
+	if (rc.size.height == 0) {
+		rc.size.height = atlas->get_height();
 	}
 	return rc;
 }
@@ -168,11 +172,9 @@ void AtlasTexture::draw_rect(RID p_canvas_item, const Rect2 &p_rect, bool p_tile
 	}
 
 	Rect2 src_rect = Rect2(0, 0, get_width(), get_height());
-
-	Rect2 dr;
-	Rect2 src_c;
-	if (get_rect_region(p_rect, src_rect, dr, src_c)) {
-		atlas->draw_rect_region(p_canvas_item, dr, src_c, p_modulate, p_transpose, filter_clip);
+	Rect2 dst_rect, uv_rect;
+	if (get_rect_region(p_rect, src_rect, dst_rect, uv_rect)) {
+		atlas->draw_rect_region(p_canvas_item, dst_rect, uv_rect, p_modulate, p_transpose, filter_clip);
 	}
 }
 
@@ -182,43 +184,46 @@ void AtlasTexture::draw_rect_region(RID p_canvas_item, const Rect2 &p_rect, cons
 		return;
 	}
 
-	Rect2 dr;
-	Rect2 src_c;
-	if (get_rect_region(p_rect, p_src_rect, dr, src_c)) {
-		atlas->draw_rect_region(p_canvas_item, dr, src_c, p_modulate, p_transpose, filter_clip);
+	Rect2 dst_rect, uv_rect;
+	if (get_rect_region(p_rect, p_src_rect, dst_rect, uv_rect)) {
+		atlas->draw_rect_region(p_canvas_item, dst_rect, uv_rect, p_modulate, p_transpose, filter_clip);
 	}
 }
 
-bool AtlasTexture::get_rect_region(const Rect2 &p_rect, const Rect2 &p_src_rect, Rect2 &r_rect, Rect2 &r_src_rect) const {
-	if (!atlas.is_valid()) {
+bool AtlasTexture::get_rect_region(const Rect2 &p_rect, const Rect2 &p_uv_rect, Rect2 &r_rect, Rect2 &r_uv_rect) const {
+	if (atlas.is_null()) {
 		return false;
 	}
 
-	Rect2 src = p_src_rect;
-	if (src.size == Size2()) {
-		src.size = region.size;
-	}
-	if (src.size == Size2() && atlas.is_valid()) {
-		src.size = atlas->get_size();
-	}
-	Vector2 scale = p_rect.size / src.size;
+	Rect2 uv_rect = p_uv_rect;
 
-	src.position += (region.position - margin.position);
-	Rect2 src_clipped = _get_region_rect().intersection(src);
-	if (src_clipped.size == Size2()) {
+	if (uv_rect.size == Size2()) {
+		uv_rect.size = region.size;
+	}
+	if (uv_rect.size == Size2()) {
+		uv_rect.size = atlas->get_size();
+	}
+
+	uv_rect.position += (region.position - margin.position);
+	Rect2 uv_rect_clipped = _get_region_rect().intersection(uv_rect); // UV Clipping
+	
+	if (uv_rect_clipped.size == Size2()) {
 		return false;
 	}
 
-	Vector2 ofs = (src_clipped.position - src.position);
+	Vector2 scale = p_rect.size / uv_rect.size;
+	Vector2 ofs = (uv_rect_clipped.position - uv_rect.position);
+
 	if (scale.x < 0) {
-		ofs.x += (src_clipped.size.x - src.size.x);
+		ofs.x += (uv_rect_clipped.size.x - uv_rect.size.x);
 	}
 	if (scale.y < 0) {
-		ofs.y += (src_clipped.size.y - src.size.y);
+		ofs.y += (uv_rect_clipped.size.y - uv_rect.size.y);
 	}
 
-	r_rect = Rect2(p_rect.position + ofs * scale, src_clipped.size * scale);
-	r_src_rect = src_clipped;
+	r_rect = Rect2(p_rect.position + ofs * scale, uv_rect_clipped.size * scale);
+	r_uv_rect = uv_rect_clipped;
+
 	return true;
 }
 

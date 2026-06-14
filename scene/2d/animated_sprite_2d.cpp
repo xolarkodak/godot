@@ -260,26 +260,23 @@ void AnimatedSprite2D::_notification(int p_what) {
 
 			RID ci = get_canvas_item();
 
-			Size2 s = texture->get_size();
+			Size2 texture_size = texture->get_size();
 			Point2 ofs = offset;
 			if (centered) {
-				ofs -= s / 2;
+				ofs -= texture_size / 2;
 			}
 
 			if (get_viewport() && get_viewport()->is_snap_2d_transforms_to_pixel_enabled()) {
 				ofs = (ofs + Point2(0.5, 0.5)).floor();
 			}
 
-			Rect2 dst_rect(ofs, s);
+			Rect2 dst_rect(ofs, texture_size);
+			Rect2 srs_rect(Vector2(), texture_size);
 
-			if (hflip) {
-				dst_rect.size.x = -dst_rect.size.x;
-			}
-			if (vflip) {
-				dst_rect.size.y = -dst_rect.size.y;
-			}
+			dst_rect.size.x *= hflip ? -1.0f : 1.0f;
+			dst_rect.size.y *= vflip ? -1.0f : 1.0f;
 
-			texture->draw_rect_region(ci, dst_rect, Rect2(Vector2(), texture->get_size()), Color(1, 1, 1), false);
+			texture->draw_rect_region(ci, dst_rect, srs_rect, Color(1, 1, 1), false);
 		} break;
 	}
 }

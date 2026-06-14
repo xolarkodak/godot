@@ -102,9 +102,8 @@ void Sprite2D::_get_rects(Rect2 &r_src_rect, Rect2 &r_dst_rect, bool &r_filter_c
 	}
 
 	r_dst_rect = Rect2(dest_offset, frame_size);
-
-	r_src_rect.size.x *= hflip ? -1.0f : 1.0f;
-	r_src_rect.size.y *= vflip ? -1.0f : 1.0f;
+	r_dst_rect.size.x *= hflip ? -1.0f : 1.0f;
+	r_dst_rect.size.y *= vflip ? -1.0f : 1.0f;
 }
 
 void Sprite2D::_notification(int p_what) {

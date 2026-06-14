@@ -114,9 +114,9 @@ void TextureRect::_notification(int p_what) {
 			}
 
 			dst_rect.position += rect_offset;
-
-			uv_rect.size.x *= hflip ? -1.0f : 1.0f;
-			uv_rect.size.y *= vflip ? -1.0f : 1.0f;
+			dst_rect.size.x *= hflip ? -1.0f : 1.0f;
+			dst_rect.size.y *= vflip ? -1.0f : 1.0f;
+			
 			uv_rect.position += texture_offset;
 			uv_rect.size *= texture_scale;
 

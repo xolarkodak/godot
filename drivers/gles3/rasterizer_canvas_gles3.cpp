@@ -807,13 +807,11 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				Rect2 uv_rect = Rect2(0, 0, 1, 1);
 
 				if (dst_rect.size.width < 0.0f) {
-					dst_rect.position.x += dst_rect.size.width;
-					dst_rect.size.width *= -1.0f;
+					dst_rect.position.x -= dst_rect.size.width;
 				}
 
 				if (dst_rect.size.height < 0.0f) {
-					dst_rect.position.y += dst_rect.size.height;
-					dst_rect.size.height *= -1.0f;
+					dst_rect.position.y -= dst_rect.size.height;
 				}
 
 				if (rect->texture.is_valid()) {
