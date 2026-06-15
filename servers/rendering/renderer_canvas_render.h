@@ -200,7 +200,7 @@ public:
 		struct CommandRect : public Command {
 			Rect2 rect;
 			Rect2 texture_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f);
-			float texture_repeat[2]; 
+			Vector2 texture_repeat_size; 
 			Color modulate;
 			uint16_t flags = 0;
 			float outline = 0.0f;

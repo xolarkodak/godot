@@ -692,7 +692,7 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 	Color mobulated;
 
 	uint32_t base_flags = 0;
-	Size2 texpixel_size;
+	Vector2 texpixel_size;
 
 	bool reclip = false;
 
@@ -806,14 +806,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				Rect2 dst_rect = rect->rect;
 				Rect2 uv_rect = Rect2(0, 0, 1, 1);
 
-				if (dst_rect.size.width < 0.0f) {
-					dst_rect.position.x -= dst_rect.size.width;
-				}
-
-				if (dst_rect.size.height < 0.0f) {
-					dst_rect.position.y -= dst_rect.size.height;
-				}
-
 				if (rect->texture.is_valid()) {
 					uv_rect = rect->texture_rect;
 
@@ -827,18 +819,33 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					}
 					
 					if (c_use_region_tile) {
-						float uv_repeat[2];
+						Vector2 uv_repeat = rect -> texture_repeat_size * texpixel_size;
 
-						uv_repeat[0] = rect -> texture_repeat[0] * texpixel_size.x;
-						uv_repeat[1] = rect -> texture_repeat[1] * texpixel_size.y;
-
-						uv_rect.size.x = (uv_repeat[0] >= 0.01f) ? uv_rect.size.x/uv_repeat[0] : 1.0f;
-						uv_rect.size.y = (uv_repeat[1] >= 0.01f) ? uv_rect.size.y/uv_repeat[1] : 1.0f;
+						uv_rect.size.x = (uv_repeat.x >= 0.01f) ? uv_rect.size.x/uv_repeat.x : 1.0f;
+						uv_rect.size.y = (uv_repeat.y >= 0.01f) ? uv_rect.size.y/uv_repeat.y : 1.0f;
 
 						// Fill data
-						state.instance_data_array[r_index].color_texture_pixel_size[0] = uv_repeat[0];
-						state.instance_data_array[r_index].color_texture_pixel_size[1] = uv_repeat[1];
+						state.instance_data_array[r_index].color_texture_pixel_size[0] = uv_repeat.x;
+						state.instance_data_array[r_index].color_texture_pixel_size[1] = uv_repeat.y;
 					}
+
+					// Do we need this?
+					//if (uv_rect.size.x < 0.0f) {
+					//	dst_rect.size.x = -dst_rect.size.x;
+					//}
+
+					//if (uv_rect.size.y < 0.0f) {
+					//	dst_rect.size.y = -dst_rect.size.y;
+					//}
+				}
+
+
+				if (dst_rect.size.x < 0.0f) {
+					dst_rect.position.x -= dst_rect.size.x;
+				}
+
+				if (dst_rect.size.y < 0.0f) {
+					dst_rect.position.y -= dst_rect.size.y;
 				}
 
 

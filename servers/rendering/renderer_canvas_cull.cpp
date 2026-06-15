@@ -1466,16 +1466,6 @@ void RendererCanvasCull::canvas_item_add_texture_rect(RID p_item, const Rect2 &p
 		rect->texture_rect = Rect2(0, 0, ABS(p_rect.size.width), ABS(p_rect.size.height));
 	}
 
-	if (p_rect.size.x < 0.0f) {
-		rect->rect.size.x = -rect->rect.size.x;
-		rect->texture_rect.size.x = -rect->texture_rect.size.x;
-	}
-
-	if (p_rect.size.y < 0.0f) {
-		rect->rect.size.y = -rect->rect.size.y;
-		rect->texture_rect.size.y = -rect->texture_rect.size.y;
-	}
-
 	if (p_transpose) {
 		rect->flags |= RendererCanvasRender::CANVAS_RECT_TRANSPOSE;
 		SWAP(rect->rect.size.x, rect->rect.size.y);
@@ -1545,114 +1535,35 @@ void RendererCanvasCull::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_r
 	Item *canvas_item = canvas_item_owner.get_or_null(p_item);
 	ERR_FAIL_NULL(canvas_item);
 
-	float texture_size[2];
-	texture_size[0] = p_source.size.x - p_topleft.x - p_bottomright.x;
-	texture_size[1] = p_source.size.y - p_topleft.y - p_bottomright.y;
-
-	float uv_axis[2];
-	uv_axis[0] = texture_size[0];
-	uv_axis[1] = texture_size[1];
-
+	Vector2 texture_size = p_source.size - p_topleft - p_bottomright;
+	Vector2 uv_axis = texture_size;
+	Vector2 center_size = p_rect.size - p_topleft - p_bottomright;
 	uint16_t flag_axis = RendererCanvasRender::CANVAS_RECT_REGION;
+	float pos_x;
 
 	if (p_x_axis_mode == RS::NinePatchAxisMode::NINE_PATCH_TILE) {
-		uv_axis[0] = p_rect.size.x - p_topleft.x - p_bottomright.x;
+		uv_axis.x = center_size.x;
 		flag_axis |= RendererCanvasRender::CANVAS_RECT_REGION_TILE;
 	} else if (p_x_axis_mode == RS::NinePatchAxisMode::NINE_PATCH_TILE_FIT) {
-		uv_axis[0] = int((p_rect.size.x - p_topleft.x - p_bottomright.x)/(texture_size[0]))*texture_size[0];
-		uv_axis[0] = (uv_axis[0] <= 0) ? texture_size[0] : uv_axis[0];
+		uv_axis.x = int((center_size.x)/(texture_size.x))*texture_size.x;
+		uv_axis.x = (uv_axis.x <= 0.0f) ? texture_size.x : uv_axis.x;
 		flag_axis |= RendererCanvasRender::CANVAS_RECT_REGION_TILE;
 	}
 
 	if (p_y_axis_mode == RS::NinePatchAxisMode::NINE_PATCH_TILE) {
-		uv_axis[1] = p_rect.size.y - p_topleft.y - p_bottomright.y;
+		uv_axis.y = center_size.y;
 		flag_axis |= RendererCanvasRender::CANVAS_RECT_REGION_TILE;
 	} else if (p_y_axis_mode == RS::NinePatchAxisMode::NINE_PATCH_TILE_FIT) {
-		uv_axis[1] = int((p_rect.size.y - p_topleft.y - p_bottomright.y)/(texture_size[1]))*texture_size[1];
-		uv_axis[1] = (uv_axis[1] <= 0) ? texture_size[1] : uv_axis[1];
+		uv_axis.y = int((center_size.y)/(texture_size.y))*texture_size.y;
+		uv_axis.y = (uv_axis.y <= 0) ? texture_size.y : uv_axis.y;
 		flag_axis |= RendererCanvasRender::CANVAS_RECT_REGION_TILE;
 	}
 
 
 	// The order of parts is important to reduce batch breaks due to usage CANVAS_RECT_REGION_TILE
-
-	if (p_rect.size.x > p_topleft.x + p_bottomright.x) {
-		// 2 Center Top
-		if (p_topleft.y > 0) {
-			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
-			ERR_FAIL_NULL(rect);
-			
-			rect->rect = Rect2(p_rect.position.x + p_topleft.x, p_rect.position.y, p_rect.size.x - p_topleft.x - p_bottomright.x, p_topleft.y);
-			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y, uv_axis[0], p_topleft.y);
-			rect->texture = p_texture;
-			rect->modulate = p_modulate;
-			rect->flags = flag_axis;
-			rect->texture_repeat[0] = texture_size[0];
-			rect->texture_repeat[1] = p_topleft.y;
-		}
-
-		// 5 Center
-		if (p_draw_center) {
-			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
-			ERR_FAIL_NULL(rect);
-			
-			rect->rect = Rect2(p_rect.position.x + p_topleft.x, p_rect.position.y + p_topleft.y, p_rect.size.x - p_topleft.x - p_bottomright.x, p_rect.size.y - p_topleft.y - p_bottomright.y);
-			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y + p_topleft.y, uv_axis[0], uv_axis[1]);
-			rect->texture = p_texture;
-			rect->modulate = p_modulate;
-			rect->flags = flag_axis;
-			rect->texture_repeat[0] = texture_size[0];
-			rect->texture_repeat[1] = texture_size[1];
-		}
-
-		// 8 Center Bottom
-		if (p_bottomright.y > 0) {
-			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
-			ERR_FAIL_NULL(rect);
-			
-			rect->rect = Rect2(p_rect.position.x + p_topleft.x, p_rect.position.y + p_rect.size.y - p_bottomright.y, p_rect.size.x - p_topleft.x - p_bottomright.x, p_bottomright.y);
-			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y + p_source.size.y - p_bottomright.y, uv_axis[0], p_bottomright.y);
-			rect->texture = p_texture;
-			rect->modulate = p_modulate;
-			rect->flags = flag_axis;
-			rect->texture_repeat[0] = texture_size[0];
-			rect->texture_repeat[1] = p_bottomright.y;
-		}
-	}
-
-	if (p_rect.size.y > p_topleft.y + p_bottomright.y) {
-		// 4 Left Edge
-		if (p_topleft.x > 0) {
-			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
-			ERR_FAIL_NULL(rect);
-			
-			rect->rect = Rect2(p_rect.position.x, p_rect.position.y + p_topleft.y, p_topleft.x, p_rect.size.y - p_topleft.y - p_bottomright.y);
-			rect->texture_rect = Rect2(p_source.position.x, p_source.position.y + p_topleft.y, p_topleft.x, uv_axis[1]);
-			rect->texture = p_texture;
-			rect->modulate = p_modulate;
-			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_topleft.x;
-			rect->texture_repeat[1] = texture_size[1];
-		}
-
-		// 6 Rigth Edge
-		if (p_topleft.x > 0) {
-			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
-			ERR_FAIL_NULL(rect);
-			
-			rect->rect = Rect2(p_rect.position.x + p_rect.size.x - p_bottomright.x, p_rect.position.y + p_topleft.y, p_bottomright.x, p_rect.size.y - p_topleft.y - p_bottomright.y);
-			rect->texture_rect = Rect2(p_source.position.x + p_source.size.x - p_bottomright.x, p_source.position.y + p_topleft.y, p_bottomright.x, uv_axis[1]);
-			rect->texture = p_texture;
-			rect->modulate = p_modulate;
-			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_bottomright.x;
-			rect->texture_repeat[1] = texture_size[1];
-		}
-	}
-
-	if (p_topleft.x > 0){
+	if (p_topleft.x > 0.0f) {
 		// 1 Corner Left Up
-		if (p_topleft.y > 0){
+		if (p_topleft.y > 0.0f){
 			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
 			ERR_FAIL_NULL(rect);
 			
@@ -1661,12 +1572,12 @@ void RendererCanvasCull::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_r
 			rect->texture = p_texture;
 			rect->modulate = p_modulate;
 			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_topleft.x;
-			rect->texture_repeat[1] = p_topleft.y;
+			rect->texture_repeat_size.x = p_topleft.x;
+			rect->texture_repeat_size.y = p_topleft.y;
 		}
 
 		// 7 Corner Left Down
-		if (p_bottomright.y > 0){
+		if (p_bottomright.y > 0.0f){
 			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
 			ERR_FAIL_NULL(rect);
 			
@@ -1675,38 +1586,111 @@ void RendererCanvasCull::canvas_item_add_nine_patch(RID p_item, const Rect2 &p_r
 			rect->texture = p_texture;
 			rect->modulate = p_modulate;
 			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_topleft.x;
-			rect->texture_repeat[1] = p_bottomright.y;
+			rect->texture_repeat_size.x = p_topleft.x;
+			rect->texture_repeat_size.y = p_bottomright.y;
 		}
-	}
 
-	if (p_bottomright.x > 0) {
-		// 3 Corner Rigth Top
-		if (p_topleft.y > 0) {
+		// 4 Left Edge
+		if (center_size.y > 0.0f) {
 			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
 			ERR_FAIL_NULL(rect);
 			
-			rect->rect = Rect2(p_rect.position.x + p_rect.size.x - p_bottomright.x, p_rect.position.y, p_bottomright.x, p_topleft.y);
+			rect->rect = Rect2(p_rect.position.x, p_rect.position.y + p_topleft.y, p_topleft.x, center_size.y);
+			rect->texture_rect = Rect2(p_source.position.x, p_source.position.y + p_topleft.y, p_topleft.x, uv_axis.y);
+			rect->texture = p_texture;
+			rect->modulate = p_modulate;
+			rect->flags = flag_axis;
+			rect->texture_repeat_size.x = p_topleft.x;
+			rect->texture_repeat_size.y = texture_size.y;
+		}
+	}
+
+	if (center_size.x > 0.0f) {
+		pos_x = p_rect.position.x + p_topleft.x;
+		// 2 Center Top
+		if (p_topleft.y > 0.0f) {
+			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
+			ERR_FAIL_NULL(rect);
+			
+			rect->rect = Rect2(pos_x, p_rect.position.y, center_size.x, p_topleft.y);
+			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y, uv_axis.x, p_topleft.y);
+			rect->texture = p_texture;
+			rect->modulate = p_modulate;
+			rect->flags = flag_axis;
+			rect->texture_repeat_size.x = texture_size.x;
+			rect->texture_repeat_size.y = p_topleft.y;
+		}
+
+		// 5 Center
+		if (p_draw_center && center_size.y > 0.0f) {
+			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
+			ERR_FAIL_NULL(rect);
+			
+			rect->rect = Rect2(pos_x, p_rect.position.y + p_topleft.y, center_size);
+			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y + p_topleft.y, uv_axis);
+			rect->texture = p_texture;
+			rect->modulate = p_modulate;
+			rect->flags = flag_axis;
+			rect->texture_repeat_size = texture_size;
+		}
+
+		// 8 Center Bottom
+		if (p_bottomright.y > 0.0f) {
+			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
+			ERR_FAIL_NULL(rect);
+			
+			rect->rect = Rect2(pos_x, p_rect.position.y + p_rect.size.y - p_bottomright.y, center_size.x, p_bottomright.y);
+			rect->texture_rect = Rect2(p_source.position.x + p_topleft.x, p_source.position.y + p_source.size.y - p_bottomright.y, uv_axis.x, p_bottomright.y);
+			rect->texture = p_texture;
+			rect->modulate = p_modulate;
+			rect->flags = flag_axis;
+			rect->texture_repeat_size.x = texture_size.x;
+			rect->texture_repeat_size.y = p_bottomright.y;
+		}
+	}
+
+	if (p_bottomright.x > 0.0f) {
+		pos_x = p_rect.position.x + p_rect.size.x - p_bottomright.x;
+		// 3 Corner Rigth Top
+		if (p_topleft.y > 0.0f) {
+			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
+			ERR_FAIL_NULL(rect);
+			
+			rect->rect = Rect2(pos_x, p_rect.position.y, p_bottomright.x, p_topleft.y);
 			rect->texture_rect = Rect2(p_source.position.x + p_source.size.x - p_bottomright.x, p_source.position.y, p_bottomright.x, p_topleft.y);
 			rect->texture = p_texture;
 			rect->modulate = p_modulate;
 			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_bottomright.x;
-			rect->texture_repeat[1] = p_topleft.y;
+			rect->texture_repeat_size.x = p_bottomright.x;
+			rect->texture_repeat_size.y = p_topleft.y;
 		}
-
-		// 9 Corner Right Down
-		if (p_bottomright.y > 0){
+		
+		// 6 Rigth Edge
+		if (center_size.y > 0.0f) {
 			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
 			ERR_FAIL_NULL(rect);
 			
-			rect->rect = Rect2(p_rect.position.x + p_rect.size.x - p_bottomright.x, p_rect.position.y + p_rect.size.y - p_bottomright.y, p_bottomright);
+			rect->rect = Rect2(pos_x, p_rect.position.y + p_topleft.y, p_bottomright.x, center_size.y);
+			rect->texture_rect = Rect2(p_source.position.x + p_source.size.x - p_bottomright.x, p_source.position.y + p_topleft.y, p_bottomright.x, uv_axis.y);
+			rect->texture = p_texture;
+			rect->modulate = p_modulate;
+			rect->flags = flag_axis;
+			rect->texture_repeat_size.x = p_bottomright.x;
+			rect->texture_repeat_size.y = texture_size.y;
+		}
+
+		// 9 Corner Right Down
+		if (p_bottomright.y > 0.0f){
+			Item::CommandRect *rect = canvas_item->alloc_command<Item::CommandRect>();
+			ERR_FAIL_NULL(rect);
+			
+			rect->rect = Rect2(pos_x, p_rect.position.y + p_rect.size.y - p_bottomright.y, p_bottomright);
 			rect->texture_rect = Rect2(p_source.position.x + p_source.size.x - p_bottomright.x, p_source.position.y + p_source.size.y - p_bottomright.y, p_bottomright);
 			rect->texture = p_texture;
 			rect->modulate = p_modulate;
 			rect->flags = flag_axis;
-			rect->texture_repeat[0] = p_bottomright.x;
-			rect->texture_repeat[1] = p_bottomright.y;
+			rect->texture_repeat_size.x = p_bottomright.x;
+			rect->texture_repeat_size.y = p_bottomright.y;
 		}
 	}
 }

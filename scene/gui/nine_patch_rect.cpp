@@ -42,6 +42,10 @@ void NinePatchRect::_notification(int p_what) {
 			Rect2 rect = Rect2(Point2(), get_size());
 			Rect2 src_rect = region_rect;
 
+			if (src_rect == Rect2()) {
+				src_rect.size = texture->get_size();
+			}
+
 			texture->get_rect_region(rect, src_rect, rect, src_rect);
 
 			RID ci = get_canvas_item();
