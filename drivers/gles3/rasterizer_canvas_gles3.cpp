@@ -714,24 +714,18 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 			_update_transform_2d_to_mat2x3(base_transform * draw_transform, state.instance_data_array[r_index].world);
 		}
 
+		// Clear Batch INFO
+		state.instance_data_array[r_index].texpixel_size[0] = 0.0f;
+		state.instance_data_array[r_index].texpixel_size[1] = 0.0f;
+		
 		// Zero out most fields.
 		for (int i = 0; i < 4; i++) {
 			state.instance_data_array[r_index].modulation[i] = 0.0f;
-			state.instance_data_array[r_index].ninepatch_margins[i] = 0.0f;
+			state.instance_data_array[r_index].msdf[i] = 0.0f;
 			state.instance_data_array[r_index].uv_rect[i] = 0.0f;
 			state.instance_data_array[r_index].dst_rect[i] = 0.0f;
-			state.instance_data_array[r_index].lights[i] = uint32_t(0);
+			state.instance_data_array[r_index].custom_value[i] = 0.0f;
 		}
-		state.instance_data_array[r_index].color_texture_pixel_size[0] = 0.0f;
-		state.instance_data_array[r_index].color_texture_pixel_size[1] = 0.0f;
-
-		state.instance_data_array[r_index].uv_repeat[0] = 0.0f;
-		state.instance_data_array[r_index].uv_repeat[1] = 0.0f;
-
-		state.instance_data_array[r_index].lights[0] = lights[0];
-		state.instance_data_array[r_index].lights[1] = lights[1];
-		state.instance_data_array[r_index].lights[2] = lights[2];
-		state.instance_data_array[r_index].lights[3] = lights[3];
 
 		state.instance_data_array[r_index].flags = base_flags | (state.instance_data_array[r_index == 0 ? 0 : r_index - 1].flags & (FLAGS_DEFAULT_NORMAL_MAP_USED | FLAGS_DEFAULT_SPECULAR_MAP_USED)); // Reset on each command for safety, keep canvastexture binding config.
 
@@ -825,8 +819,8 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 						uv_rect.size.y = (uv_repeat.y >= 0.01f) ? uv_rect.size.y/uv_repeat.y : 1.0f;
 
 						// Fill data
-						state.instance_data_array[r_index].color_texture_pixel_size[0] = uv_repeat.x;
-						state.instance_data_array[r_index].color_texture_pixel_size[1] = uv_repeat.y;
+						state.instance_data_array[r_index].custom_value[0] = uv_repeat.x;
+						state.instance_data_array[r_index].custom_value[1] = uv_repeat.y;
 					}
 
 					// Do we need this?
@@ -860,7 +854,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 					state.canvas_instance_batches[state.current_batch_index].use_lcd = true;
 					state.instance_data_array[r_index].flags |= FLAGS_USE_LCD;
 				}
-				
 
 				state.instance_data_array[r_index].modulation[0] = mobulated.r;
 				state.instance_data_array[r_index].modulation[1] = mobulated.g;
@@ -896,12 +889,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				state.instance_data_array[r_index].modulation[1] = base_color.g;
 				state.instance_data_array[r_index].modulation[2] = base_color.b;
 				state.instance_data_array[r_index].modulation[3] = base_color.a;
-
-				for (int j = 0; j < 4; j++) {
-					state.instance_data_array[r_index].uv_rect[j] = 0;
-					state.instance_data_array[r_index].dst_rect[j] = 0;
-					state.instance_data_array[r_index].ninepatch_margins[j] = 0;
-				}
 
 				_add_to_batch(r_index, r_batch_broken);
 			} break;
@@ -1020,11 +1007,6 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 				state.instance_data_array[r_index].modulation[2] = base_color.b * modulate.b;
 				state.instance_data_array[r_index].modulation[3] = base_color.a * modulate.a;
 
-				for (int j = 0; j < 4; j++) {
-					state.instance_data_array[r_index].uv_rect[j] = 0;
-					state.instance_data_array[r_index].dst_rect[j] = 0;
-					state.instance_data_array[r_index].ninepatch_margins[j] = 0;
-				}
 				_add_to_batch(r_index, r_batch_broken);
 			} break;
 
@@ -1810,8 +1792,11 @@ void RasterizerCanvasGLES3::_prepare_canvas_texture(RID p_texture, uint32_t &r_i
 
 	Size2i size_cache = Size2i(texture->width, texture->height);
 
-	r_texpixel_size.x = 1.0 / float(size_cache.x);
-	r_texpixel_size.y = 1.0 / float(size_cache.y);
+	r_texpixel_size.x = 1.0f / float(size_cache.x);
+	r_texpixel_size.y = 1.0f / float(size_cache.y);
+
+	state.instance_data_array[r_index].texpixel_size[0] = r_texpixel_size.x;
+	state.instance_data_array[r_index].texpixel_size[1] = r_texpixel_size.y;
 }
 
 void RasterizerCanvasGLES3::reset_canvas() {
@@ -2070,23 +2055,15 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 
 	// QUAD VAO
 	{
-		const float qv[8] = { 0, 0, 0, 1, 1, 1, 1, 0 };
 		const uint32_t indices[6] = { 0, 1, 3, 1, 2, 3 };
 
 		glGenVertexArrays(1, &data.quad_vao);           // Gen VAO
-		glGenBuffers(1, &data.quad_vbo_vertices);       // Gen VBO
 		glGenBuffers(1, &data.quad_vbo_indices);        // Gen EBO
 
 		glBindVertexArray(data.quad_vao);               // Bind VAO
 
-		glBindBuffer(GL_ARRAY_BUFFER, data.quad_vbo_vertices);                   // Bind VBO
-		glBufferData(GL_ARRAY_BUFFER, sizeof(float) * 8, qv, GL_STATIC_DRAW);    // Fill Data VBO
-
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, data.quad_vbo_indices);            // Bind EBO
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint32_t) * 6, indices, GL_STATIC_DRAW);   // Fill Data EBO
-		
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, nullptr);            // Pointer
-		glEnableVertexAttribArray(0);       // Enable Layout 0
 
 		glBindBuffer(GL_ARRAY_BUFFER, 0);   // Clear 
 		glBindVertexArray(0);
@@ -2095,8 +2072,6 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 	{
 		glGenVertexArrays(1, &data.primitive_vao);               // Gen VAO
 		glBindVertexArray(data.primitive_vao);                   // Bind VAO
-		glBindBuffer(GL_ARRAY_BUFFER, data.quad_vbo_vertices);   // Bind VBO
-		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(float) * 2, nullptr); // Pointer
 		glBindBuffer(GL_ARRAY_BUFFER, 0);   // Clear 
 		glBindVertexArray(0);
 	}
@@ -2253,7 +2228,6 @@ RasterizerCanvasGLES3::~RasterizerCanvasGLES3() {
 
 	// Clear QUAD VAO and VBOs
 	glDeleteVertexArrays(1, &data.quad_vao);
-	glDeleteBuffers(1, &data.quad_vbo_vertices);
 	glDeleteBuffers(1, &data.quad_vbo_indices);
 	// Clear PRIMITIVE VAO
 	glDeleteVertexArrays(1, &data.primitive_vao);

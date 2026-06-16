@@ -210,37 +210,33 @@ public:
 	void free_polygon(PolygonID p_polygon) override;
 
 	struct InstanceData {
-		float world[6];
-		float color_texture_pixel_size[2];
-		union {
-			//rect
+		float world[6];              // 8 9.xy  24b
+		float texpixel_size[2];      // 9.zw    8b
+		union {                      
+			//Rect
 			struct {
-				float modulation[4];
-				union {
-					float msdf[4];
-					float ninepatch_margins[4];
-				};
-				float dst_rect[4];
-				float uv_rect[4];
-				float uv_repeat[2];
+				float modulation[4]; // 10       16b
+				float msdf[4];       // 11       16b
+				float dst_rect[4];   // 12       16b
+				float uv_rect[4];    // 13       16b
+				uint32_t pad[2];     // 14.xy  NOT USED  8b
 			};
-			//primitive
+			//Primitive (triangle)
 			struct {
-				float points[6]; // vec2 points[3]
-				float uvs[6]; // vec2 points[3]
-				uint32_t colors[6]; // colors encoded as half
+				float points[6];     // 10 11.xy  vec2 points[3]  24b
+				float uvs[6];        // 11.zw 12  vec2 points[3]  24b
+				uint32_t colors[6];  // 13 14.xy  colors encoded as half  24b
 			};
 		};
-		uint32_t flags;
-		uint32_t specular_shininess;
-		uint32_t lights[4];
+		uint32_t flags;              // 14.z       4b
+		uint32_t specular_shininess; // 14.w  NOT USED       4b
+		float custom_value[4];       // 15         16b
 	};
 
 	static_assert(sizeof(InstanceData) == 128, "2D instance data struct size must be 128 bytes");
 
 	struct Data {
 		GLuint quad_vao;
-		GLuint quad_vbo_vertices;
 		GLuint quad_vbo_indices;
 
 		GLuint primitive_vao;

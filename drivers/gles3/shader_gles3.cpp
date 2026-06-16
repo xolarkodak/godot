@@ -188,11 +188,12 @@ void ShaderGLES3::_build_variant_code(StringBuilder &builder, uint32_t p_variant
 		builder.append("precision mediump float;\n"); // Default mediump precision for Fragment stage
 	}
 
-	builder.append("precision mediump int;\n");
+	builder.append("precision highp int;\n");
 	if (!RasterizerGLES3::is_gles_over_gl()) {
 		builder.append("precision mediump sampler2D;\n");
 		builder.append("precision mediump samplerCube;\n");
 		builder.append("precision mediump sampler2DArray;\n");
+		builder.append("precision mediump sampler3D;\n");
 	}
 
 	const StageTemplate &stage_template = stage_templates[p_stage_type];
