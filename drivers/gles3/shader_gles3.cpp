@@ -306,6 +306,8 @@ void ShaderGLES3::_compile_specialization(Version::Specialization &spec, uint32_
 	spec.ok = false;
 	GLint status;
 
+	WARN_PRINT("Compile Specialization: " + itos(p_variant) + " | " + itos(p_specialization));
+
 	//vertex stage
 	{
 		StringBuilder builder;
