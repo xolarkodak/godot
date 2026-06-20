@@ -346,6 +346,7 @@ void RendererCanvasCull::_cull_canvas_item(Item *p_canvas_item, const Transform2
 	if (p_is_already_y_sorted) {
 		// Y-sorted item's final transform is calculated before y-sorting,
 		// and is passed as `p_parent_xform` afterwards. No need to recalculate.
+		ci->xform_final = p_parent_xform;
 		final_xform = p_parent_xform;
 	} else {
 		if (!_interpolation_data.interpolation_enabled || !ci->interpolated || !ci->on_interpolate_transform_list) {
@@ -362,6 +363,7 @@ void RendererCanvasCull::_cull_canvas_item(Item *p_canvas_item, const Transform2
 			parent_xform.columns[2] = (parent_xform.columns[2] + Point2(0.5, 0.5)).floor();
 		}
 
+		ci->xform_final = self_xform;
 		final_xform = parent_xform * self_xform;
 	}
 
@@ -650,6 +652,12 @@ void RendererCanvasCull::canvas_item_set_transform(RID p_item, const Transform2D
 	}
 
 	canvas_item->xform_curr = p_transform;
+}
+
+Transform2D RendererCanvasCull::canvas_item_get_transform(RID p_item) {
+	Item *canvas_item = canvas_item_owner.get_or_null(p_item);
+	ERR_FAIL_NULL_V(canvas_item, Transform2D());
+	return canvas_item->xform_final;
 }
 
 void RendererCanvasCull::canvas_item_set_visibility_layer(RID p_item, uint32_t p_visibility_layer) {

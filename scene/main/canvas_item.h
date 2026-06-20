@@ -361,6 +361,7 @@ public:
 	virtual Transform2D get_global_transform_const() const;
 	virtual Transform2D get_global_transform_with_canvas() const;
 	virtual Transform2D get_screen_transform() const;
+	virtual Transform2D get_draw_transform();
 
 	CanvasItem *get_top_level() const;
 	_FORCE_INLINE_ RID get_canvas_item() const {
