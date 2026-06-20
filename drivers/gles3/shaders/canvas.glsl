@@ -99,16 +99,16 @@ layout(std140) uniform MaterialUniforms{ //ubo:4
 // Out for Region Tile
 #if !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
 layout(location = 15) in highp vec4 attrib_H;
-flat out mediump vec4 uv_repeat;
+flat out vec4 uv_repeat;
 #endif // !USE_PRIMITIVE && USE_REGION_TILE
 // Out for MSDF
 #if !defined(USE_PRIMITIVE) && defined(USE_MSDF)
 flat out vec4 varying_C;
 #endif // !USE_PRIMITIVE && USE_MSDF
 
-out highp vec2 uv_interp;
+out vec2 uv_interp;
 out vec2 vertex_interp;
-out lowp vec4 color_interp;
+out vec4 color_interp;
 
 #GLOBALS
 
@@ -133,9 +133,9 @@ void main() {
 #endif // CUSTOM1_USED
 
 #if defined(USE_PRIMITIVE)
-	vec2 vertex;
-	highp vec2 uv;
-	lowp vec4 color;
+	vec2 vertex = vec2(0.0);
+	vec2 uv = vec2(0.0);
+	vec4 color = vec4(0.0);
 
 	if (gl_VertexID % 3 == 0) {
 		vertex = read_draw_data_point_a;
@@ -157,7 +157,7 @@ void main() {
 #elif defined(USE_ATTRIBUTES) // !USE_PRIMITIVE
 	vec2 vertex = vertex_attrib;
 	vec4 color = color_attrib * read_draw_data_modulation;
-	highp vec2 uv = uv_attrib;
+	vec2 uv = uv_attrib;
 
 #if defined(USE_INSTANCING)
 	if (bool(read_draw_data_flags & FLAGS_INSTANCING_HAS_COLORS)) {
@@ -174,16 +174,16 @@ void main() {
 
 #else // USE_PRIMITIVE  (!USE_PRIMITIVE and !USE_ATTRIBUTES)
 
-	mediump vec2 vertex_base;
+	vec2 vertex_base = vec2(0.0);
 	int vertex_id = gl_VertexID % 4;
 	vertex_base.x = float(vertex_id == 3 || vertex_id == 2);
 	vertex_base.y = float(vertex_id == 1 || vertex_id == 2);
 
 #if !defined(USE_REGION_TILE)
-	highp vec2 uv = uv_rect.xy + abs(uv_rect.zw) * ((read_draw_data_flags & FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
+	vec2 uv = uv_rect.xy + abs(uv_rect.zw) * ((read_draw_data_flags & FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
 	//vec2 uv = uv_rect.xy + uv_rect.zw*vertex_base;
 #else // !USE_REGION_TILE (USE_REGION_TILE)
-	highp vec2 uv = abs(uv_rect.zw)*vertex_base;
+	vec2 uv = abs(uv_rect.zw)*vertex_base;
 #endif // USE_REGION_TILE
 
 	vec4 color = read_draw_data_modulation;
@@ -244,12 +244,12 @@ void main() {
 #include "canvas_uniforms_inc.glsl"
 #include "stdlib_inc.glsl"
 
-in mediump vec2 uv_interp;
+in vec2 uv_interp;
 in vec2 vertex_interp;
-in lowp vec4 color_interp;
+in vec4 color_interp;
 
 #if !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
-flat in mediump vec4 uv_repeat;
+flat in vec4 uv_repeat;
 #endif // !USE_PRIMITIVE && USE_REGION_TILE
 
 #if !defined(USE_PRIMITIVE) && defined(USE_MSDF)
@@ -263,7 +263,7 @@ uniform sampler2D main_texture; //texunit:0
 uniform sampler2D backbuffer_texture; //texunit:-4
 #endif // SCREEN_TEXTURE_USE
 
-layout(location = 0) out lowp vec4 frag_color;
+layout(location = 0) out vec4 frag_color;
 
 /* clang-format off */
 // This needs to be outside clang-format so the ubo comment is in the right place
@@ -283,12 +283,12 @@ float msdf_median(float r, float g, float b, float a) {
 }
 
 void main() {
-	lowp vec4 color = color_interp;
+	vec4 color = color_interp;
 
 #if !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
-	mediump vec2 uv = uv_repeat.xy + fract(uv_interp)*uv_repeat.zw;
+	vec2 uv = uv_repeat.xy + fract(uv_interp)*uv_repeat.zw;
 #else // USE_PRIMITIVE || !USE_REGION_TILE
-	mediump vec2 uv = uv_interp;
+	vec2 uv = uv_interp;
 #endif // !USE_PRIMITIVE && USE_REGION_TILE
 
 	vec2 vertex = vertex_interp;
@@ -329,7 +329,7 @@ void main() {
 
 
 #if defined(SCREEN_UV_USED)
-	mediump vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
+	vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
 #endif // SCREEN_UV_USED
 
 
