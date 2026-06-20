@@ -53,14 +53,19 @@ public:
 		STRETCH_KEEP_ASPECT,
 		STRETCH_KEEP_ASPECT_CENTERED,
 		STRETCH_KEEP_ASPECT_COVERED,
+		STRETCH_TILE_FIT,
 	};
 
 private:
-	bool hflip = false;
-	bool vflip = false;
+	Vector2 texture_offset;
+	Vector2 texture_scale = Vector2(1, 1);
+	Vector2 rect_offset;
+	Vector2 rect_scale = Vector2(1, 1);
 	Ref<Texture2D> texture;
 	ExpandMode expand_mode = EXPAND_KEEP_SIZE;
 	StretchMode stretch_mode = STRETCH_SCALE;
+	bool hflip = false;
+	bool vflip = false;
 
 	void _texture_changed();
 
@@ -75,6 +80,18 @@ protected:
 public:
 	void set_texture(const Ref<Texture2D> &p_tex);
 	Ref<Texture2D> get_texture() const;
+	
+	void set_texture_offset(const Vector2 &p_offset);
+	Vector2 get_texture_offset() const;
+
+	void set_texture_scale(const Vector2 &p_scale);
+	Vector2 get_texture_scale() const;
+
+	void set_rect_offset(const Vector2 &p_offset);
+	Vector2 get_rect_offset() const;
+
+	void set_rect_scale(const Vector2 &p_scale);
+	Vector2 get_rect_scale() const;
 
 	void set_expand_mode(ExpandMode p_mode);
 	ExpandMode get_expand_mode() const;
