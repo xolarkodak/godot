@@ -110,6 +110,7 @@ private:
 	bool top_level = false;
 	bool drawing = false;
 	bool block_transform_notify = false;
+	bool ignore_canvas_modulate = false;
 	bool behind = false;
 	bool use_parent_material = false;
 	bool notify_local_transform = false;
@@ -284,6 +285,9 @@ public:
 
 	virtual void set_self_modulate(const Color &p_self_modulate);
 	Color get_self_modulate() const;
+
+	void set_ignore_canvas_modulate(bool p_enable);
+	bool is_ignore_canvas_modulate() const;
 
 	void set_visibility_layer(uint32_t p_visibility_layer);
 	uint32_t get_visibility_layer() const;

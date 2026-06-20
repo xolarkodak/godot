@@ -716,8 +716,6 @@ void main() {
 
 #ifdef MODE_LIGHT_ONLY
 	float light_only_alpha = 0.0;
-#elif !defined(MODE_UNSHADED)
-	color *= canvas_data.canvas_modulation;
 #endif
 
 #if !defined(MODE_UNSHADED)
