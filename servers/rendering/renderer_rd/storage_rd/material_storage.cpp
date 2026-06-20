@@ -670,6 +670,24 @@ RD::PipelineColorBlendState::Attachment MaterialStorage::ShaderData::blend_mode_
 			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_SRC_ALPHA;
 			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
 		} break;
+		case BLEND_MODE_MUL: {
+			attachment.enable_blend = true;
+			attachment.alpha_blend_op = RD::BLEND_OP_ADD;
+			attachment.color_blend_op = RD::BLEND_OP_ADD;
+			attachment.src_color_blend_factor = RD::BLEND_FACTOR_DST_COLOR;
+			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_DST_ALPHA;
+			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+		} break;
+		case BLEND_MODE_AMPLIFY: {
+			attachment.enable_blend = true;
+			attachment.alpha_blend_op = RD::BLEND_OP_ADD;
+			attachment.color_blend_op = RD::BLEND_OP_ADD;
+			attachment.src_color_blend_factor = RD::BLEND_FACTOR_DST_COLOR;
+			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ONE;
+			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
+		} break;
 		case BLEND_MODE_SUB: {
 			attachment.enable_blend = true;
 			attachment.alpha_blend_op = RD::BLEND_OP_REVERSE_SUBTRACT;
@@ -679,14 +697,32 @@ RD::PipelineColorBlendState::Attachment MaterialStorage::ShaderData::blend_mode_
 			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_SRC_ALPHA;
 			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
 		} break;
-		case BLEND_MODE_MUL: {
+		case BLEND_MODE_MIN: {
+			attachment.enable_blend = true;
+			attachment.alpha_blend_op = RD::BLEND_OP_MINIMUM;
+			attachment.color_blend_op = RD::BLEND_OP_MINIMUM;
+			attachment.src_color_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ONE;
+			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
+		} break;
+		case BLEND_MODE_MAX: {
+			attachment.enable_blend = true;
+			attachment.alpha_blend_op = RD::BLEND_OP_MAXIMUM;
+			attachment.color_blend_op = RD::BLEND_OP_MAXIMUM;
+			attachment.src_color_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ONE;
+			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
+		} break;
+		case BLEND_MODE_NEGATIVE: {
 			attachment.enable_blend = true;
 			attachment.alpha_blend_op = RD::BLEND_OP_ADD;
 			attachment.color_blend_op = RD::BLEND_OP_ADD;
-			attachment.src_color_blend_factor = RD::BLEND_FACTOR_DST_COLOR;
-			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ZERO;
-			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_DST_ALPHA;
-			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.src_color_blend_factor = RD::BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+			attachment.dst_color_blend_factor = RD::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+			attachment.src_alpha_blend_factor = RD::BLEND_FACTOR_ZERO;
+			attachment.dst_alpha_blend_factor = RD::BLEND_FACTOR_ONE;
 		} break;
 		case BLEND_MODE_ALPHA_TO_COVERAGE: {
 			attachment.enable_blend = true;
@@ -721,10 +757,18 @@ bool MaterialStorage::ShaderData::blend_mode_uses_blend_alpha(BlendMode p_mode) 
 			return false;
 		case BLEND_MODE_ADD:
 			return true;
-		case BLEND_MODE_SUB:
-			return true;
 		case BLEND_MODE_MUL:
 			return true;
+		case BLEND_MODE_AMPLIFY:
+			return true;
+		case BLEND_MODE_SUB:
+			return true;
+		case BLEND_MODE_MIN:
+			return false;
+		case BLEND_MODE_MAX:
+			return false;
+		case BLEND_MODE_NEGATIVE:
+			return false;
 		case BLEND_MODE_ALPHA_TO_COVERAGE:
 			return false;
 		case BLEND_MODE_PREMULTIPLIED_ALPHA:
