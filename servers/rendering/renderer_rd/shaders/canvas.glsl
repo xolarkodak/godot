@@ -635,7 +635,9 @@ void main() {
 #else
 	{
 #endif
+#if !defined(FRAGMENT_CODE_USED)
 		color *= texture(sampler2D(color_texture, texture_sampler), uv);
+#endif
 	}
 
 	uint light_count = read_draw_data_flags & 15u; //max 15 lights
