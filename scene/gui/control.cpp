@@ -4049,6 +4049,7 @@ void Control::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_size"), &Control::get_size);
 	ClassDB::bind_method(D_METHOD("get_rotation"), &Control::get_rotation);
 	ClassDB::bind_method(D_METHOD("get_rotation_degrees"), &Control::get_rotation_degrees);
+	ClassDB::bind_method(D_METHOD("get_global_rotation"), &Control::get_global_rotation);
 	ClassDB::bind_method(D_METHOD("get_scale"), &Control::get_scale);
 	ClassDB::bind_method(D_METHOD("get_pivot_offset"), &Control::get_pivot_offset);
 	ClassDB::bind_method(D_METHOD("get_pivot_offset_ratio"), &Control::get_pivot_offset_ratio);
