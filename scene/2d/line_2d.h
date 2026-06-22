@@ -112,9 +112,6 @@ public:
 	void set_round_precision(int precision);
 	int get_round_precision() const;
 
-	void set_antialiased(bool p_antialiased);
-	bool get_antialiased() const;
-
 protected:
 	void _notification(int p_what);
 	void _draw();
@@ -125,21 +122,48 @@ private:
 	void _gradient_changed();
 	void _curve_changed();
 
+	enum Orientation {
+		UP = 0,
+		DOWN = 1
+	};
+
+	void shape_build();
+
+	// Triangle-strip methods
+	void strip_begin(Vector2 up, Vector2 down, Color color, float uvx);
+	void strip_new_quad(Vector2 up, Vector2 down, Color color, float uvx);
+	void strip_add_quad(Vector2 up, Vector2 down, Color color, float uvx);
+	void strip_add_tri(Vector2 up, Orientation orientation);
+	void strip_add_arc(Vector2 center, float angle_delta, Orientation orientation);
+
+	void new_arc(Vector2 center, Vector2 vbegin, float angle_delta, Color color, Rect2 uv_rect);
+
 private:
-	Vector<Vector2> _points;
-	LineJointMode _joint_mode = LINE_JOINT_SHARP;
-	LineCapMode _begin_cap_mode = LINE_CAP_NONE;
-	LineCapMode _end_cap_mode = LINE_CAP_NONE;
-	bool _closed = false;
-	float _width = 10.0;
-	Ref<Curve> _curve;
-	Color _default_color = Color(1, 1, 1);
-	Ref<Gradient> _gradient;
+	bool shape_dirty = true;
+	Vector<Vector2> points;
+	LineJointMode joint_mode = LINE_JOINT_SHARP;
+	LineCapMode begin_cap_mode = LINE_CAP_NONE;
+	LineCapMode end_cap_mode = LINE_CAP_NONE;
+	bool closed = false;
+	float width = 10.0;
+	Ref<Curve> curve;
+	Color default_color = Color(1, 1, 1);
+	Ref<Gradient> gradient;
 	Ref<Texture2D> _texture;
-	LineTextureMode _texture_mode = LINE_TEXTURE_NONE;
-	float _sharp_limit = 2.f;
-	int _round_precision = 8;
-	bool _antialiased = false;
+	LineTextureMode texture_mode = LINE_TEXTURE_NONE;
+	float sharp_limit = 2.f;
+	int round_precision = 8;
+	bool antialiased = false;
+	float tile_aspect = 1.f; // w/h
+
+	// Results after shape build
+	Vector<Vector2> vertices;
+	Vector<Color> colors;
+	Vector<Vector2> uvs;
+	Vector<int> indices;
+
+	bool _interpolate_color = false;
+	int _last_index[2] = {}; // Index of last up and down vertices of the strip
 };
 
 // Needed so we can bind functions
