@@ -1,4 +1,4 @@
-#define MAX_LIGHTS_PER_ITEM 16
+#define MAX_LIGHTS_PER_ITEM 1
 
 #define M_PI 3.14159265359
 
@@ -90,18 +90,6 @@ uint sc_packed_0() {
 }
 
 #endif
-
-bool sc_use_lighting() {
-	return ((sc_packed_0() >> 0) & 1U) != 0;
-}
-
-bool sc_use_msdf() {
-	return ((sc_packed_0() >> 1) & 1U) != 0;
-}
-
-bool sc_use_lcd() {
-	return ((sc_packed_0() >> 2) & 1U) != 0;
-}
 
 // In vulkan, sets should always be ordered using the following logic:
 // Lower Sets: Sets that change format and layout less often

@@ -91,10 +91,12 @@ class RasterizerCanvasGLES3 : public RendererCanvasRender {
 
 	enum {
 		MAX_RENDER_ITEMS = 256 * 1024,
-		MAX_LIGHT_TEXTURES = 1024,
-		MAX_LIGHTS_PER_ITEM = 16,
-		DEFAULT_MAX_LIGHTS_PER_RENDER = 256,
+		MAX_LIGHT_TEXTURES = 1,
+		MAX_LIGHTS_PER_ITEM = 1,
+		DEFAULT_MAX_LIGHTS_PER_RENDER = 1,
 	};
+
+	bool pixel_snap = false;
 
 	/******************/
 	/**** LIGHTING ****/
@@ -204,30 +206,30 @@ public:
 	void free_polygon(PolygonID p_polygon) override;
 
 	struct InstanceData {
-		float world[6];
-		float color_texture_pixel_size[2];
+		float world[6];              // 8 9.xy  24b
+		float texpixel_size[2];      // 9.zw    8b
 		union {
-			//rect
+			//Rect
 			struct {
-				float modulation[4];
+				float modulation[4]; // 10       16b
 				union {
-					float msdf[4];
-					float ninepatch_margins[4];
+					float msdf[4];               // 11       16b
+					float ninepatch_margins[4];  // 11       16b
 				};
-				float dst_rect[4];
-				float src_rect[4];
-				float pad[2];
+				float dst_rect[4];   // 12       16b
+				float src_rect[4];   // 13       16b
+				uint32_t pad[2];     // 14.xy  NOT USED  8b
 			};
-			//primitive
+			//Primitive (triangle)
 			struct {
-				float points[6]; // vec2 points[3]
-				float uvs[6]; // vec2 points[3]
-				uint32_t colors[6]; // colors encoded as half
+				float points[6];     // 10 11.xy  vec2 points[3]  24b
+				float uvs[6];        // 11.zw 12  vec2 points[3]  24b
+				uint32_t colors[6];  // 13 14.xy  colors encoded as half  24b
 			};
 		};
-		uint32_t flags;
-		uint32_t instance_uniforms_ofs;
-		uint32_t lights[4];
+		uint32_t flags;                 // 14.z       4b
+		uint32_t instance_uniforms_ofs; // 14.w       4b
+		float custom_value[4];          // 15         16b
 	};
 
 	static_assert(sizeof(InstanceData) == 128, "2D instance data struct size must be 128 bytes");
@@ -247,8 +249,8 @@ public:
 
 		RID canvas_shader_default_version;
 
-		uint32_t max_lights_per_render = 256;
-		uint32_t max_lights_per_item = 16;
+		uint32_t max_lights_per_render = 1;
+		uint32_t max_lights_per_item = 1;
 		uint32_t max_instances_per_buffer = 16384;
 		uint32_t max_instance_buffer_size = 16384 * 128;
 	} data;

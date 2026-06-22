@@ -1757,7 +1757,8 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 			variants.push_back(base_define + "#define USE_PRIMITIVE\n"); // SHADER_VARIANT_PRIMITIVE
 			variants.push_back(base_define + "#define USE_PRIMITIVE\n#define USE_POINT_SIZE\n"); // SHADER_VARIANT_PRIMITIVE_POINTS
 			variants.push_back(base_define + "#define USE_ATTRIBUTES\n"); // SHADER_VARIANT_ATTRIBUTES
-			variants.push_back(base_define + "#define USE_ATTRIBUTES\n#define USE_POINT_SIZE\n"); // SHADER_VARIANT_ATTRIBUTES_POINTS
+			variants.push_back(base_define + "#define USE_MSDF\n"); // SHADER_VARIANT_QUAD_MSDF
+			variants.push_back(base_define + "#define USE_LCD\n"); // SHADER_VARIANT_QUAD_LCD
 		}
 
 		shader.canvas_shader.initialize(variants, global_defines, {}, {});
@@ -1773,8 +1774,8 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		ShaderCompiler::DefaultIdentifierActions actions;
 
 		actions.renames["VERTEX"] = "vertex";
-		actions.renames["LIGHT_VERTEX"] = "light_vertex";
-		actions.renames["SHADOW_VERTEX"] = "shadow_vertex";
+		//actions.renames["LIGHT_VERTEX"] = "light_vertex";
+		//actions.renames["SHADOW_VERTEX"] = "shadow_vertex";
 		actions.renames["UV"] = "uv";
 		actions.renames["POINT_SIZE"] = "point_size";
 
@@ -1789,16 +1790,16 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		actions.renames["INSTANCE_CUSTOM"] = "instance_custom";
 
 		actions.renames["COLOR"] = "color";
-		actions.renames["NORMAL"] = "normal";
-		actions.renames["NORMAL_MAP"] = "normal_map";
-		actions.renames["NORMAL_MAP_DEPTH"] = "normal_map_depth";
+		//actions.renames["NORMAL"] = "normal";
+		//actions.renames["NORMAL_MAP"] = "normal_map";
+		//actions.renames["NORMAL_MAP_DEPTH"] = "normal_map_depth";
 		actions.renames["TEXTURE"] = "color_texture";
 		actions.renames["TEXTURE_PIXEL_SIZE"] = "read_draw_data_color_texture_pixel_size";
-		actions.renames["NORMAL_TEXTURE"] = "normal_texture";
-		actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
-		actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
+		//actions.renames["NORMAL_TEXTURE"] = "normal_texture";
+		//actions.renames["SPECULAR_SHININESS_TEXTURE"] = "specular_texture";
+		//actions.renames["SPECULAR_SHININESS"] = "specular_shininess";
 		actions.renames["SCREEN_UV"] = "screen_uv";
-		actions.renames["REGION_RECT"] = "region_rect";
+		//actions.renames["REGION_RECT"] = "region_rect";
 		actions.renames["SCREEN_PIXEL_SIZE"] = "canvas_data.screen_pixel_size";
 		actions.renames["FRAGCOORD"] = "gl_FragCoord";
 		actions.renames["POINT_COORD"] = "gl_PointCoord";
@@ -1808,37 +1809,37 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		actions.renames["CUSTOM0"] = "custom0";
 		actions.renames["CUSTOM1"] = "custom1";
 
-		actions.renames["LIGHT_POSITION"] = "light_position";
-		actions.renames["LIGHT_DIRECTION"] = "light_direction";
-		actions.renames["LIGHT_IS_DIRECTIONAL"] = "is_directional";
-		actions.renames["LIGHT_COLOR"] = "light_color";
-		actions.renames["LIGHT_ENERGY"] = "light_energy";
-		actions.renames["LIGHT"] = "light";
-		actions.renames["SHADOW_MODULATE"] = "shadow_modulate";
+		//actions.renames["LIGHT_POSITION"] = "light_position";
+		//actions.renames["LIGHT_DIRECTION"] = "light_direction";
+		//actions.renames["LIGHT_IS_DIRECTIONAL"] = "is_directional";
+		//actions.renames["LIGHT_COLOR"] = "light_color";
+		//actions.renames["LIGHT_ENERGY"] = "light_energy";
+		//actions.renames["LIGHT"] = "light";
+		//actions.renames["SHADOW_MODULATE"] = "shadow_modulate";
 
-		actions.renames["texture_sdf"] = "texture_sdf";
-		actions.renames["texture_sdf_normal"] = "texture_sdf_normal";
-		actions.renames["sdf_to_screen_uv"] = "sdf_to_screen_uv";
-		actions.renames["screen_uv_to_sdf"] = "screen_uv_to_sdf";
+		//actions.renames["texture_sdf"] = "texture_sdf";
+		//actions.renames["texture_sdf_normal"] = "texture_sdf_normal";
+		//actions.renames["sdf_to_screen_uv"] = "sdf_to_screen_uv";
+		//actions.renames["screen_uv_to_sdf"] = "screen_uv_to_sdf";
 
 		actions.usage_defines["COLOR"] = "#define COLOR_USED\n";
 		actions.usage_defines["SCREEN_UV"] = "#define SCREEN_UV_USED\n";
 		actions.usage_defines["SCREEN_PIXEL_SIZE"] = "@SCREEN_UV";
-		actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
-		actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";
-		actions.usage_defines["SPECULAR_SHININESS"] = "#define SPECULAR_SHININESS_USED\n";
+		//actions.usage_defines["NORMAL"] = "#define NORMAL_USED\n";
+		//actions.usage_defines["NORMAL_MAP"] = "#define NORMAL_MAP_USED\n";
+		//actions.usage_defines["SPECULAR_SHININESS"] = "#define SPECULAR_SHININESS_USED\n";
 		actions.usage_defines["POINT_SIZE"] = "#define USE_POINT_SIZE\n";
 		actions.usage_defines["CUSTOM0"] = "#define CUSTOM0_USED\n";
 		actions.usage_defines["CUSTOM1"] = "#define CUSTOM1_USED\n";
 
 		actions.render_mode_defines["skip_vertex_transform"] = "#define SKIP_TRANSFORM_USED\n";
 		actions.render_mode_defines["unshaded"] = "#define MODE_UNSHADED\n";
-		actions.render_mode_defines["light_only"] = "#define MODE_LIGHT_ONLY\n";
+		//actions.render_mode_defines["light_only"] = "#define MODE_LIGHT_ONLY\n";
 		actions.render_mode_defines["world_vertex_coords"] = "#define USE_WORLD_VERTEX_COORDS\n";
 
 		actions.custom_samplers["TEXTURE"] = "texture_sampler";
-		actions.custom_samplers["NORMAL_TEXTURE"] = "texture_sampler";
-		actions.custom_samplers["SPECULAR_SHININESS_TEXTURE"] = "texture_sampler";
+		//actions.custom_samplers["NORMAL_TEXTURE"] = "texture_sampler";
+		//actions.custom_samplers["SPECULAR_SHININESS_TEXTURE"] = "texture_sampler";
 		actions.base_texture_binding_index = 1;
 		actions.texture_layout_set = MATERIAL_UNIFORM_SET;
 		actions.base_uniform_string = "material.";
@@ -2452,6 +2453,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 
 				if (has_msdf != r_current_batch->use_msdf || rect->px_range != r_current_batch->msdf_pix_range || rect->outline != r_current_batch->msdf_outline) {
 					r_current_batch = _new_batch(r_batch_broken);
+					r_current_batch->shader_variant = has_msdf ? SHADER_VARIANT_QUAD_MSDF : SHADER_VARIANT_QUAD;
 					r_current_batch->use_msdf = has_msdf;
 					r_current_batch->msdf_pix_range = rect->px_range;
 					r_current_batch->msdf_outline = rect->outline;
@@ -2460,6 +2462,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				bool has_lcd = bool(rect->flags & CANVAS_RECT_LCD);
 				if (has_lcd != r_current_batch->use_lcd) {
 					r_current_batch = _new_batch(r_batch_broken);
+					r_current_batch->shader_variant = has_msdf ? SHADER_VARIANT_QUAD_LCD : SHADER_VARIANT_QUAD;
 					r_current_batch->use_lcd = has_lcd;
 				}
 
