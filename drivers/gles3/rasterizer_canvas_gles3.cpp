@@ -114,7 +114,7 @@ void RasterizerCanvasGLES3::canvas_render_items(RID p_to_render_target, Item *p_
 	pixel_snap = p_pixel_snap;
 
 	// Clear out any state that may have been left from the 3D pass.
-	// Reset Canvas 
+	// Reset Canvas
 	reset_canvas();
 
 	if (state.canvas_instance_data_buffers[state.current_data_buffer_index].fence != GLsync()) {
@@ -592,11 +592,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 				} break;
 				case GLES3::CanvasShaderData::BLEND_MODE_AMPLIFY: {
 					glBlendEquation(GL_FUNC_ADD);
-					if (state.transparent_render_target) {
-						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
-					} else {
-						glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
-					}
+					glBlendFuncSeparate(GL_DST_COLOR, GL_ONE, GL_ZERO, GL_ONE);
 				} break;
 				case GLES3::CanvasShaderData::BLEND_MODE_SUB: {
 					glBlendEquation(GL_FUNC_REVERSE_SUBTRACT);
@@ -614,11 +610,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 				} break;
 				case GLES3::CanvasShaderData::BLEND_MODE_NEGATIVE: {
 					glBlendEquation(GL_FUNC_ADD);
-					if (state.transparent_render_target) {
-						glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
-					} else {
-						glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
-					}
+					glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ONE_MINUS_SRC_ALPHA, GL_ZERO, GL_ONE);
 				} break;
 				case GLES3::CanvasShaderData::BLEND_MODE_PMALPHA: {
 					glBlendEquation(GL_FUNC_ADD);
@@ -1502,7 +1494,6 @@ void RasterizerCanvasGLES3::canvas_begin(RID p_to_render_target, bool p_to_backb
 
 void RasterizerCanvasGLES3::_bind_canvas_texture(RID p_texture, RS::CanvasItemTextureFilter p_base_filter, RS::CanvasItemTextureRepeat p_base_repeat) {
 	GLES3::TextureStorage *texture_storage = GLES3::TextureStorage::get_singleton();
-	GLES3::Config *config = GLES3::Config::get_singleton();
 
 	if (p_texture == RID()) {
 		p_texture = default_canvas_texture;
@@ -1850,7 +1841,6 @@ RasterizerCanvasGLES3::RasterizerCanvasGLES3() {
 	singleton = this;
 	GLES3::TextureStorage *texture_storage = GLES3::TextureStorage::get_singleton();
 	GLES3::MaterialStorage *material_storage = GLES3::MaterialStorage::get_singleton();
-	GLES3::Config *config = GLES3::Config::get_singleton();
 
 	glVertexAttrib4f(RS::ARRAY_COLOR, 1.0, 1.0, 1.0, 1.0);
 

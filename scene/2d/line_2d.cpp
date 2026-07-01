@@ -61,8 +61,8 @@ void Line2D::shape_build() {
 	const int point_count = points.size();
 	const bool wrap_around = closed && point_count > 2;
 
-	_interpolate_color = gradient != nullptr;
-	const bool retrieve_curve = curve != nullptr;
+	_interpolate_color = gradient.is_valid();
+	const bool retrieve_curve = curve.is_valid();
 	const bool distance_required = _interpolate_color || retrieve_curve ||
 			texture_mode == Line2D::LINE_TEXTURE_TILE ||
 			texture_mode == Line2D::LINE_TEXTURE_STRETCH;

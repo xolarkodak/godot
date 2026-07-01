@@ -1624,6 +1624,7 @@ TEST_CASE("[SceneTree][Viewport] Physics Picking 2D") {
 		pc.c->set_shape(pc.r);
 		pc.a->add_child(pc.c);
 		pc.a->set_name("A" + itos(i));
+		pc.a->set_pickable(true);
 		pc.c->set_name("C" + itos(i));
 		v.push_back(pc);
 		SIGNAL_WATCH(pc.a, SceneStringName(mouse_entered));
