@@ -553,7 +553,7 @@ void RasterizerCanvasGLES3::_render_items(RID p_to_render_target, int p_item_cou
 		GLES3::CanvasShaderData::BlendMode blend_mode = state.canvas_instance_batches[i].blend_mode;
 		Color blend_color = state.canvas_instance_batches[i].blend_color;
 
-		if (last_blend_mode != blend_mode || last_blend_color != blend_color) {
+		if (blend_mode != last_blend_mode || (blend_mode == GLES3::CanvasShaderData::BLEND_MODE_LCD && last_blend_color != blend_color)) {
 			if (last_blend_mode == GLES3::CanvasShaderData::BLEND_MODE_DISABLED) {
 				// re-enable it
 				glEnable(GL_BLEND);
@@ -717,7 +717,8 @@ void RasterizerCanvasGLES3::_record_item_commands(const Item *p_item, RID p_rend
 			state.canvas_instance_batches[state.current_batch_index].repeat = texture_repeat;
 		}
 
-		if (blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode || blend_color != state.canvas_instance_batches[state.current_batch_index].blend_color) {
+		// 0: If Blend mode are differend, start a new batch
+		if (blend_mode != state.canvas_instance_batches[state.current_batch_index].blend_mode || (blend_mode == GLES3::CanvasShaderData::BLEND_MODE_LCD && blend_color != state.canvas_instance_batches[state.current_batch_index].blend_color)) {
 			_new_batch(r_batch_broken);
 			state.canvas_instance_batches[state.current_batch_index].blend_mode = blend_mode;
 			state.canvas_instance_batches[state.current_batch_index].blend_color = blend_color;
