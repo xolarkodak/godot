@@ -39,7 +39,6 @@ void TextureRect::_notification(int p_what) {
 
 			Vector2 texture_size = texture->get_size();
 			Rect2 uv_rect, dst_rect;
-			//bool tile = false;
 
 			switch (stretch_mode) {
 				case STRETCH_SCALE: {
@@ -50,14 +49,12 @@ void TextureRect::_notification(int p_what) {
 					dst_rect.size = get_size();
 					uv_rect.size = dst_rect.size;
 					dst_rect.size *= rect_scale;
-					//tile = true;
 				} break;
 				case STRETCH_TILE_FIT: {
 					dst_rect.size = get_size();
-					uv_rect.size.x = dst_rect.size.x - Math::fmod(dst_rect.size.x, texture_size.x);
-					uv_rect.size.y = dst_rect.size.y - Math::fmod(dst_rect.size.y, texture_size.y);
+					uv_rect.size.x = MAX(texture_size.x, Math::round(dst_rect.size.x / texture_size.x) * texture_size.x);
+					uv_rect.size.y = MAX(texture_size.y, Math::round(dst_rect.size.y / texture_size.y) * texture_size.y);
 					dst_rect.size *= rect_scale;
-					//tile = true;
 				} break;
 				case STRETCH_KEEP: {
 					dst_rect.size = texture_size*rect_scale;
