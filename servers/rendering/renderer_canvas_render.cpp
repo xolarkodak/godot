@@ -61,10 +61,6 @@ const Rect2 &RendererCanvasRender::Item::get_rect() const {
 				r = crect->rect;
 
 			} break;
-			case Item::Command::TYPE_NINEPATCH: {
-				const Item::CommandNinePatch *style = static_cast<const Item::CommandNinePatch *>(c);
-				r = style->rect;
-			} break;
 
 			case Item::Command::TYPE_POLYGON: {
 				const Item::CommandPolygon *polygon = static_cast<const Item::CommandPolygon *>(c);

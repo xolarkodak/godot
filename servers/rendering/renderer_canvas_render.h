@@ -180,7 +180,6 @@ public:
 		struct Command {
 			enum Type {
 				TYPE_RECT,
-				TYPE_NINEPATCH,
 				TYPE_POLYGON,
 				TYPE_PRIMITIVE,
 				TYPE_MESH,
@@ -212,23 +211,6 @@ public:
 				outline = 0;
 				px_range = 1;
 				type = TYPE_RECT;
-			}
-		};
-
-		struct CommandNinePatch : public Command {
-			Rect2 rect;
-			Rect2 source;
-			float margin[4];
-			bool draw_center;
-			Color color;
-			RS::NinePatchAxisMode axis_x;
-			RS::NinePatchAxisMode axis_y;
-
-			RID texture;
-
-			CommandNinePatch() {
-				draw_center = true;
-				type = TYPE_NINEPATCH;
 			}
 		};
 
