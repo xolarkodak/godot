@@ -212,13 +212,10 @@ public:
 			//Rect
 			struct {
 				float modulation[4]; // 10       16b
-				union {
-					float msdf[4];               // 11       16b
-					float ninepatch_margins[4];  // 11       16b
-				};
+				float msdf[4];       // 11       16b
 				float dst_rect[4];   // 12       16b
-				float uv_rect[4];   // 13       16b
-				uint32_t pad[2];     // 14.xy  NOT USED  8b
+				float uv_rect[4];    // 13       16b
+				uint32_t pad[2];     // 14.xy    8b NOT USED
 			};
 			//Primitive (triangle)
 			struct {
@@ -286,6 +283,7 @@ public:
 
 		bool use_msdf = false;
 		bool use_lcd = false;
+		bool use_region_tile = false;
 	};
 
 	// DataBuffer contains our per-frame data. I.e. the resources that are updated each frame.

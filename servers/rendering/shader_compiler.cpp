@@ -926,11 +926,12 @@ String ShaderCompiler::_dump_node_code(const SL::Node *p_node, int p_level, Gene
 					if (u.is_texture()) {
 						StringName name;
 						if (u.hint == ShaderLanguage::ShaderNode::Uniform::HINT_SCREEN_TEXTURE) {
-							name = "color_buffer";
+							name = "backbuffer_texture";
 							if (u.filter >= ShaderLanguage::FILTER_NEAREST_MIPMAP) {
 								r_gen_code.uses_screen_texture_mipmaps = true;
 							}
 							r_gen_code.uses_screen_texture = true;
+							r_gen_code.defines.push_back("#define SCREEN_TEXTURE_USE\n");
 						} else if (u.hint == ShaderLanguage::ShaderNode::Uniform::HINT_NORMAL_ROUGHNESS_TEXTURE) {
 							name = "normal_roughness_buffer";
 							r_gen_code.uses_normal_roughness_texture = true;

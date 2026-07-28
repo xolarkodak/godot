@@ -54,7 +54,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 
 	enum ShaderVariant {
 		SHADER_VARIANT_QUAD,
-		SHADER_VARIANT_NINEPATCH,
+		SHADER_VARIANT_QUAD_REGION_TILE,
 		SHADER_VARIANT_PRIMITIVE,
 		SHADER_VARIANT_PRIMITIVE_POINTS,
 		SHADER_VARIANT_ATTRIBUTES,
@@ -363,7 +363,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 				float modulation[4];
 				float ninepatch_margins[4];
 				float dst_rect[4];
-				float src_rect[4];
+				float uv_rect[4];
 				float pad[2];
 			};
 			//primitive
@@ -375,7 +375,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		};
 		uint32_t flags;
 		uint32_t instance_uniforms_ofs;
-		uint32_t lights[4];
+		float custom_value[4];
 	};
 
 	static_assert(sizeof(InstanceData) == 128, "2D instance data struct size must be 128 bytes");
@@ -542,7 +542,9 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 		bool use_lighting = false;
 		bool use_msdf = false;
 		bool use_lcd = false;
+		bool use_region_tile = false;
 		bool has_blend = false;
+
 
 		// batch-specific data
 		union {
@@ -571,7 +573,7 @@ class RendererCanvasRenderRD : public RendererCanvasRender {
 			pc.base = push_constant();
 			memcpy(pc.world, push_data.world, sizeof(pc.world));
 			memcpy(pc.modulation, push_data.modulation, sizeof(pc.modulation));
-			memcpy(pc.lights, push_data.lights, sizeof(pc.lights));
+			//memcpy(pc.lights, push_data.lights, sizeof(pc.lights));
 			pc.flags = push_data.flags;
 			pc.instance_uniforms_ofs = push_data.instance_uniforms_ofs;
 			return pc;

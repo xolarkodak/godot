@@ -379,6 +379,11 @@ struct [[nodiscard]] Rect2 {
 			position(p_pos),
 			size(p_size) {
 	}
+
+	constexpr Rect2(real_t p_x, real_t p_y, const Size2 &p_size) :
+			position(Point2(p_x, p_y)),
+			size(p_size) {
+	}
 };
 
 template <>

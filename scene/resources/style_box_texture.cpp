@@ -42,7 +42,14 @@ void StyleBoxTexture::set_texture(Ref<Texture2D> p_texture) {
 	if (texture == p_texture) {
 		return;
 	}
+
 	texture = p_texture;
+	texture_rect = Rect2(0.0f, 0.0f, 1.0f, 1.0f);
+
+	if (texture.is_valid()) {
+    	texture_rect.size = texture->get_size();
+	}
+
 	emit_changed();
 }
 
@@ -168,7 +175,7 @@ void StyleBoxTexture::draw(RID p_canvas_item, const Rect2 &p_rect) const {
 	}
 
 	Rect2 rect = p_rect;
-	Rect2 src_rect = region_rect;
+	Rect2 src_rect = region_rect.size.is_zero_approx() ? texture_rect : region_rect;
 
 	texture->get_rect_region(rect, src_rect, rect, src_rect);
 

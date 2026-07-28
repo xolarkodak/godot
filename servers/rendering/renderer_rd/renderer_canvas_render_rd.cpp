@@ -517,157 +517,6 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 
 	Transform2D canvas_transform_inverse = p_canvas_transform.affine_inverse();
 
-	//setup directional lights if exist
-
-	uint32_t light_count = 0;
-	uint32_t directional_light_count = 0;
-	{
-		Light *l = p_directional_light_list;
-		uint32_t index = 0;
-
-		while (l) {
-			if (index == MAX_LIGHTS_PER_RENDER) {
-				l->render_index_cache = -1;
-				l = l->next_ptr;
-				continue;
-			}
-
-			CanvasLight *clight = canvas_light_owner.get_or_null(l->light_internal);
-			if (!clight) { //unused or invalid texture
-				l->render_index_cache = -1;
-				l = l->next_ptr;
-				ERR_CONTINUE(!clight);
-			}
-
-			Vector2 canvas_light_dir = l->xform_cache.columns[1].normalized();
-
-			state.light_uniforms[index].position[0] = -canvas_light_dir.x;
-			state.light_uniforms[index].position[1] = -canvas_light_dir.y;
-
-			_update_transform_2d_to_mat2x4(clight->shadow.directional_xform, state.light_uniforms[index].shadow_matrix);
-
-			state.light_uniforms[index].height = l->height; //0..1 here
-
-			for (int i = 0; i < 4; i++) {
-				state.light_uniforms[index].shadow_color[i] = uint8_t(CLAMP(int32_t(l->shadow_color[i] * 255.0), 0, 255));
-				state.light_uniforms[index].color[i] = l->color[i];
-			}
-
-			state.light_uniforms[index].color[3] *= l->energy; //use alpha for energy, so base color can go separate
-
-			if (state.shadow_fb.is_valid()) {
-				state.light_uniforms[index].shadow_pixel_size = (1.0 / state.shadow_texture_size) * (1.0 + l->shadow_smooth);
-				state.light_uniforms[index].shadow_z_far_inv = 1.0 / clight->shadow.z_far;
-				state.light_uniforms[index].shadow_y_ofs = clight->shadow.y_offset;
-			} else {
-				state.light_uniforms[index].shadow_pixel_size = 1.0;
-				state.light_uniforms[index].shadow_z_far_inv = 1.0;
-				state.light_uniforms[index].shadow_y_ofs = 0;
-			}
-
-			state.light_uniforms[index].flags = l->blend_mode << LIGHT_FLAGS_BLEND_SHIFT;
-			state.light_uniforms[index].flags |= l->shadow_filter << LIGHT_FLAGS_FILTER_SHIFT;
-			if (clight->shadow.enabled) {
-				state.light_uniforms[index].flags |= LIGHT_FLAGS_HAS_SHADOW;
-			}
-
-			l->render_index_cache = index;
-
-			index++;
-			l = l->next_ptr;
-		}
-
-		light_count = index;
-		directional_light_count = light_count;
-		using_directional_lights = directional_light_count > 0;
-	}
-
-	//setup lights if exist
-
-	{
-		Light *l = p_light_list;
-		uint32_t index = light_count;
-
-		while (l) {
-			if (index == MAX_LIGHTS_PER_RENDER) {
-				l->render_index_cache = -1;
-				l = l->next_ptr;
-				continue;
-			}
-
-			CanvasLight *clight = canvas_light_owner.get_or_null(l->light_internal);
-			if (!clight) { //unused or invalid texture
-				l->render_index_cache = -1;
-				l = l->next_ptr;
-				ERR_CONTINUE(!clight);
-			}
-
-			Transform2D final_xform;
-			if (!RSG::canvas->_interpolation_data.interpolation_enabled || !l->interpolated || !l->on_interpolate_transform_list) {
-				final_xform = l->xform_curr;
-			} else {
-				real_t f = Engine::get_singleton()->get_physics_interpolation_fraction();
-				TransformInterpolator::interpolate_transform_2d(l->xform_prev, l->xform_curr, final_xform, f);
-			}
-			// Convert light position to canvas coordinates, as all computation is done in canvas coordinates to avoid precision loss.
-			Vector2 canvas_light_pos = p_canvas_transform.xform(final_xform.get_origin());
-			state.light_uniforms[index].position[0] = canvas_light_pos.x;
-			state.light_uniforms[index].position[1] = canvas_light_pos.y;
-
-			_update_transform_2d_to_mat2x4(l->light_shader_xform.affine_inverse(), state.light_uniforms[index].matrix);
-			_update_transform_2d_to_mat2x4(l->xform_cache.affine_inverse(), state.light_uniforms[index].shadow_matrix);
-
-			state.light_uniforms[index].height = l->height * (p_canvas_transform.columns[0].length() + p_canvas_transform.columns[1].length()) * 0.5; //approximate height conversion to the canvas size, since all calculations are done in canvas coords to avoid precision loss
-			for (int i = 0; i < 4; i++) {
-				state.light_uniforms[index].shadow_color[i] = uint8_t(CLAMP(int32_t(l->shadow_color[i] * 255.0), 0, 255));
-				state.light_uniforms[index].color[i] = l->color[i];
-			}
-
-			state.light_uniforms[index].color[3] *= l->energy; //use alpha for energy, so base color can go separate
-
-			if (state.shadow_fb.is_valid()) {
-				state.light_uniforms[index].shadow_pixel_size = (1.0 / state.shadow_texture_size) * (1.0 + l->shadow_smooth);
-				state.light_uniforms[index].shadow_z_far_inv = 1.0 / clight->shadow.z_far;
-				state.light_uniforms[index].shadow_y_ofs = clight->shadow.y_offset;
-			} else {
-				state.light_uniforms[index].shadow_pixel_size = 1.0;
-				state.light_uniforms[index].shadow_z_far_inv = 1.0;
-				state.light_uniforms[index].shadow_y_ofs = 0;
-			}
-
-			state.light_uniforms[index].flags = l->blend_mode << LIGHT_FLAGS_BLEND_SHIFT;
-			state.light_uniforms[index].flags |= l->shadow_filter << LIGHT_FLAGS_FILTER_SHIFT;
-			if (clight->shadow.enabled) {
-				state.light_uniforms[index].flags |= LIGHT_FLAGS_HAS_SHADOW;
-			}
-
-			if (clight->texture.is_valid()) {
-				Rect2 atlas_rect = RendererRD::TextureStorage::get_singleton()->decal_atlas_get_texture_rect(clight->texture);
-				state.light_uniforms[index].atlas_rect[0] = atlas_rect.position.x;
-				state.light_uniforms[index].atlas_rect[1] = atlas_rect.position.y;
-				state.light_uniforms[index].atlas_rect[2] = atlas_rect.size.width;
-				state.light_uniforms[index].atlas_rect[3] = atlas_rect.size.height;
-
-			} else {
-				state.light_uniforms[index].atlas_rect[0] = 0;
-				state.light_uniforms[index].atlas_rect[1] = 0;
-				state.light_uniforms[index].atlas_rect[2] = 0;
-				state.light_uniforms[index].atlas_rect[3] = 0;
-			}
-
-			l->render_index_cache = index;
-
-			index++;
-			l = l->next_ptr;
-		}
-
-		light_count = index;
-	}
-
-	if (light_count > 0) {
-		RD::get_singleton()->buffer_update(state.lights_storage_buffer, 0, sizeof(LightUniform) * light_count, &state.light_uniforms[0]);
-	}
-
 	bool use_linear_colors = texture_storage->render_target_is_using_hdr(p_to_render_target);
 
 	{
@@ -704,7 +553,7 @@ void RendererCanvasRenderRD::canvas_render_items(RID p_to_render_target, Item *p
 		state_buffer.time = state.time;
 		state_buffer.use_pixel_snap = p_snap_2d_vertices_to_pixel;
 
-		state_buffer.directional_light_count = directional_light_count;
+		//state_buffer.directional_light_count = directional_light_count;
 
 		Vector2 canvas_scale = p_canvas_transform.get_scale();
 
@@ -1025,188 +874,9 @@ void RendererCanvasRenderRD::_update_occluder_buffer(uint32_t p_size) {
 }
 
 void RendererCanvasRenderRD::light_update_shadow(RID p_rid, int p_shadow_index, const Transform2D &p_light_xform, int p_light_mask, float p_near, float p_far, LightOccluderInstance *p_occluders, const Rect2 &p_light_rect) {
-	CanvasLight *cl = canvas_light_owner.get_or_null(p_rid);
-	ERR_FAIL_COND(!cl->shadow.enabled);
-
-	_update_shadow_atlas();
-
-	cl->shadow.z_far = p_far;
-	cl->shadow.y_offset = float(p_shadow_index * 2 + 1) / float(MAX_LIGHTS_PER_RENDER * 2);
-	Color cc = Color(p_far, p_far, p_far, 1.0);
-
-	// First, do a culling pass and record what occluders need to be drawn for this light.
-	static thread_local LocalVector<OccluderPolygon *> occluders;
-	static thread_local LocalVector<uint32_t> occluder_indices;
-	occluders.clear();
-	occluder_indices.clear();
-
-	uint32_t occluder_count = 0;
-
-	LightOccluderInstance *instance = p_occluders;
-	while (instance) {
-		OccluderPolygon *co = occluder_polygon_owner.get_or_null(instance->occluder);
-
-		occluder_count++;
-
-		if (!co || co->index_array.is_null()) {
-			instance = instance->next;
-			continue;
-		}
-
-		if (!(p_light_mask & instance->light_mask) || !p_light_rect.intersects_transformed(instance->xform_cache, instance->aabb_cache)) {
-			instance = instance->next;
-			continue;
-		}
-
-		occluders.push_back(co);
-		occluder_indices.push_back(occluder_count - 1);
-
-		instance = instance->next;
-	}
-
-	// Then, upload all the occluder transforms to a shared buffer.
-	// We only do this for the first light so we can avoid uploading the same
-	// Transforms over and over again.
-	if (p_shadow_index == 0 && occluder_count > 0) {
-		static thread_local LocalVector<float> transforms;
-		transforms.clear();
-		transforms.resize(occluder_count * 8);
-
-		instance = p_occluders;
-		uint32_t index = 0;
-		while (instance) {
-			_update_transform_2d_to_mat2x4(instance->xform_cache, &transforms[index * 8]);
-			index++;
-			instance = instance->next;
-		}
-
-		_update_occluder_buffer(occluder_count * 8 * sizeof(float));
-		RD::get_singleton()->buffer_update(state.shadow_occluder_buffer, 0, transforms.size() * sizeof(float), transforms.ptr());
-	}
-
-	Rect2i rect(0, p_shadow_index * 2, state.shadow_texture_size, 2);
-	RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(state.shadow_fb, RD::DRAW_CLEAR_ALL, VectorView(&cc, 1), 1.0f, 0, rect);
-
-	if (state.shadow_occluder_buffer.is_valid()) {
-		RD::get_singleton()->draw_list_bind_render_pipeline(draw_list, shadow_render.render_pipelines[SHADOW_RENDER_MODE_POSITIONAL_SHADOW]);
-		RD::get_singleton()->draw_list_bind_uniform_set(draw_list, state.shadow_ocluder_uniform_set, 0);
-
-		for (int i = 0; i < 4; i++) {
-			Rect2i sub_rect((state.shadow_texture_size / 4) * i, p_shadow_index * 2, (state.shadow_texture_size / 4), 2);
-			RD::get_singleton()->draw_list_set_viewport(draw_list, sub_rect);
-
-			static const Vector2 directions[4] = { Vector2(1, 0), Vector2(0, 1), Vector2(-1, 0), Vector2(0, -1) };
-			static const Vector4 rotations[4] = { Vector4(0, -1, 1, 0), Vector4(-1, 0, 0, -1), Vector4(0, 1, -1, 0), Vector4(1, 0, 0, 1) };
-
-			PositionalShadowRenderPushConstant push_constant;
-			_update_transform_2d_to_mat2x4(p_light_xform, push_constant.modelview);
-			push_constant.direction[0] = directions[i].x;
-			push_constant.direction[1] = directions[i].y;
-			push_constant.rotation[0] = rotations[i].x;
-			push_constant.rotation[1] = rotations[i].y;
-			push_constant.rotation[2] = rotations[i].z;
-			push_constant.rotation[3] = rotations[i].w;
-			push_constant.z_far = p_far;
-			push_constant.z_near = p_near;
-
-			for (uint32_t j = 0; j < occluders.size(); j++) {
-				OccluderPolygon *co = occluders[j];
-
-				push_constant.pad = occluder_indices[j];
-				push_constant.cull_mode = uint32_t(co->cull_mode);
-
-				// The slowest part about this whole function is that we have to draw the occluders one by one, 4 times.
-				// We can optimize this so that all occluders draw at once if we store vertices and indices in a giant
-				// SSBO and just save an index into that SSBO for each occluder.
-				RD::get_singleton()->draw_list_bind_vertex_array(draw_list, co->vertex_array);
-				RD::get_singleton()->draw_list_bind_index_array(draw_list, co->index_array);
-				RD::get_singleton()->draw_list_set_push_constant(draw_list, &push_constant, sizeof(PositionalShadowRenderPushConstant));
-
-				RD::get_singleton()->draw_list_draw(draw_list, true);
-			}
-		}
-	}
-	RD::get_singleton()->draw_list_end();
 }
 
 void RendererCanvasRenderRD::light_update_directional_shadow(RID p_rid, int p_shadow_index, const Transform2D &p_light_xform, int p_light_mask, float p_cull_distance, const Rect2 &p_clip_rect, LightOccluderInstance *p_occluders) {
-	CanvasLight *cl = canvas_light_owner.get_or_null(p_rid);
-	ERR_FAIL_COND(!cl->shadow.enabled);
-
-	_update_shadow_atlas();
-
-	Vector2 light_dir = p_light_xform.columns[1].normalized();
-
-	Vector2 center = p_clip_rect.get_center();
-
-	float to_edge_distance = Math::abs(light_dir.dot(p_clip_rect.get_support(-light_dir)) - light_dir.dot(center));
-
-	Vector2 from_pos = center - light_dir * (to_edge_distance + p_cull_distance);
-	float distance = to_edge_distance * 2.0 + p_cull_distance;
-	float half_size = p_clip_rect.size.length() * 0.5; //shadow length, must keep this no matter the angle
-
-	cl->shadow.z_far = distance;
-	cl->shadow.y_offset = float(p_shadow_index * 2 + 1) / float(MAX_LIGHTS_PER_RENDER * 2);
-
-	Transform2D to_light_xform;
-
-	to_light_xform[2] = from_pos;
-	to_light_xform[1] = light_dir;
-	to_light_xform[0] = -light_dir.orthogonal();
-
-	to_light_xform.invert();
-
-	Vector<Color> cc;
-	cc.push_back(Color(1, 1, 1, 1));
-
-	Rect2i rect(0, p_shadow_index * 2, state.shadow_texture_size, 2);
-	RD::DrawListID draw_list = RD::get_singleton()->draw_list_begin(state.shadow_fb, RD::DRAW_CLEAR_ALL, cc, 1.0f, 0, rect);
-	RD::get_singleton()->draw_list_bind_render_pipeline(draw_list, shadow_render.render_pipelines[SHADOW_RENDER_MODE_DIRECTIONAL_SHADOW]);
-
-	Projection projection;
-	projection.set_orthogonal(-half_size, half_size, -0.5, 0.5, 0.0, distance);
-	projection = projection * Projection(Transform3D().looking_at(Vector3(0, 1, 0), Vector3(0, 0, -1)).affine_inverse());
-
-	ShadowRenderPushConstant push_constant;
-	for (int y = 0; y < 4; y++) {
-		for (int x = 0; x < 4; x++) {
-			push_constant.projection[y * 4 + x] = projection.columns[y][x];
-		}
-	}
-
-	push_constant.direction[0] = 0.0;
-	push_constant.direction[1] = 1.0;
-	push_constant.z_far = distance;
-
-	LightOccluderInstance *instance = p_occluders;
-
-	while (instance) {
-		OccluderPolygon *co = occluder_polygon_owner.get_or_null(instance->occluder);
-
-		if (!co || co->index_array.is_null() || !(p_light_mask & instance->light_mask)) {
-			instance = instance->next;
-			continue;
-		}
-
-		_update_transform_2d_to_mat2x4(to_light_xform * instance->xform_cache, push_constant.modelview);
-		push_constant.cull_mode = uint32_t(co->cull_mode);
-
-		RD::get_singleton()->draw_list_bind_vertex_array(draw_list, co->vertex_array);
-		RD::get_singleton()->draw_list_bind_index_array(draw_list, co->index_array);
-		RD::get_singleton()->draw_list_set_push_constant(draw_list, &push_constant, sizeof(ShadowRenderPushConstant));
-
-		RD::get_singleton()->draw_list_draw(draw_list, true);
-
-		instance = instance->next;
-	}
-
-	RD::get_singleton()->draw_list_end();
-
-	Transform2D to_shadow;
-	to_shadow.columns[0].x = 1.0 / -(half_size * 2.0);
-	to_shadow.columns[2].x = 0.5;
-
-	cl->shadow.directional_xform = to_shadow * to_light_xform;
 }
 
 void RendererCanvasRenderRD::render_sdf(RID p_render_target, LightOccluderInstance *p_occluders) {
@@ -1753,7 +1423,7 @@ RendererCanvasRenderRD::RendererCanvasRenderRD() {
 		for (uint32_t ubershader = 0; ubershader < ubershader_iterations; ubershader++) {
 			const String base_define = ubershader ? "\n#define UBERSHADER\n" : "";
 			variants.push_back(base_define + ""); // SHADER_VARIANT_QUAD
-			variants.push_back(base_define + "#define USE_NINEPATCH\n"); // SHADER_VARIANT_NINEPATCH
+			variants.push_back(base_define + "#define USE_QUAD_REGION_TILE\n"); // SHADER_VARIANT_QUAD_REGION_TILE
 			variants.push_back(base_define + "#define USE_PRIMITIVE\n"); // SHADER_VARIANT_PRIMITIVE
 			variants.push_back(base_define + "#define USE_PRIMITIVE\n#define USE_POINT_SIZE\n"); // SHADER_VARIANT_PRIMITIVE_POINTS
 			variants.push_back(base_define + "#define USE_ATTRIBUTES\n"); // SHADER_VARIANT_ATTRIBUTES
@@ -2361,44 +2031,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 	template_instance.instance_uniforms_ofs = static_cast<uint32_t>(p_item->instance_allocated_shader_uniforms_offset);
 
 	bool reclip = false;
-
 	bool skipping = false;
-
-	uint16_t light_count = 0;
-	uint16_t shadow_mask = 0;
-
-	{
-		Light *light = p_lights;
-
-		while (light) {
-			if (light->render_index_cache >= 0 && p_item->light_mask & light->item_mask && p_item->z_final >= light->z_min && p_item->z_final <= light->z_max && p_item->global_rect_cache.intersects(light->rect_cache)) {
-				uint32_t light_index = light->render_index_cache;
-				// TODO: consider making lights a per-batch property and then baking light operations in the shader for better performance.
-				template_instance.lights[light_count >> 2] |= light_index << ((light_count & 3) * 8);
-
-				if (p_item->light_mask & light->item_shadow_mask) {
-					shadow_mask |= 1 << light_count;
-				}
-
-				light_count++;
-
-				if (light_count == MAX_LIGHTS_PER_ITEM - 1) {
-					break;
-				}
-			}
-			light = light->next_ptr;
-		}
-
-		template_instance.flags |= light_count << INSTANCE_FLAGS_LIGHT_COUNT_SHIFT;
-		template_instance.flags |= shadow_mask << INSTANCE_FLAGS_SHADOW_MASKED_SHIFT;
-	}
-
-	bool use_lighting = (light_count > 0 || using_directional_lights);
-
-	if (use_lighting != r_current_batch->use_lighting) {
-		r_current_batch = _new_batch(r_batch_broken);
-		r_current_batch->use_lighting = use_lighting;
-	}
 
 	const Item::Command *c = p_item->commands;
 	while (c) {
@@ -2433,6 +2066,10 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				}
 
 				bool has_blend = bool(rect->flags & CANVAS_RECT_LCD);
+				bool has_msdf = bool(rect->flags & CANVAS_RECT_MSDF);
+				bool has_lcd = bool(rect->flags & CANVAS_RECT_LCD);
+				bool has_region_tile = bool(rect->flags & CANVAS_RECT_REGION_TILE);
+
 				// Start a new batch if the blend mode has changed,
 				// or blend mode is enabled and the modulation has changed.
 				if (has_blend != r_current_batch->has_blend || (has_blend && modulated != r_current_batch->modulate)) {
@@ -2443,13 +2080,13 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 					r_current_batch->render_primitive = RD::RENDER_PRIMITIVE_TRIANGLES;
 				}
 
-				bool has_msdf = bool(rect->flags & CANVAS_RECT_MSDF);
 				TextureState tex_state(rect->texture, texture_filter, rect_repeat, has_msdf, use_linear_colors);
 				TextureInfo *tex_info = texture_info_map.getptr(tex_state);
 				if (!tex_info) {
 					tex_info = &texture_info_map.insert(tex_state, TextureInfo())->value;
 					_prepare_batch_texture_info(rect->texture, tex_state, tex_info);
 				}
+
 
 				if (has_msdf != r_current_batch->use_msdf || rect->px_range != r_current_batch->msdf_pix_range || rect->outline != r_current_batch->msdf_outline) {
 					r_current_batch = _new_batch(r_batch_broken);
@@ -2459,64 +2096,63 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 					r_current_batch->msdf_outline = rect->outline;
 				}
 
-				bool has_lcd = bool(rect->flags & CANVAS_RECT_LCD);
 				if (has_lcd != r_current_batch->use_lcd) {
 					r_current_batch = _new_batch(r_batch_broken);
 					r_current_batch->shader_variant = has_msdf ? SHADER_VARIANT_QUAD_LCD : SHADER_VARIANT_QUAD;
 					r_current_batch->use_lcd = has_lcd;
 				}
 
+				if (has_region_tile != r_current_batch->use_region_tile) {
+					r_current_batch = _new_batch(r_batch_broken);
+					r_current_batch->shader_variant = has_region_tile ? SHADER_VARIANT_QUAD_REGION_TILE : SHADER_VARIANT_QUAD;
+					r_current_batch->use_region_tile = has_region_tile;
+				}
+
 				if (r_current_batch->tex_info != tex_info) {
 					r_current_batch = _new_batch(r_batch_broken);
 					r_current_batch->tex_info = tex_info;
 				}
 
 				InstanceData *instance_data = new_instance_data(*r_current_batch, template_instance);
-				Rect2 src_rect;
-				Rect2 dst_rect;
+				Rect2 uv_rect = Rect2(0, 0, 1, 1);
+				Rect2 dst_rect = Rect2(rect->rect.position, rect->rect.size);
 
 				if (rect->texture.is_valid()) {
-					src_rect = (rect->flags & CANVAS_RECT_REGION) ? Rect2(rect->source.position * tex_info->texpixel_size, rect->source.size * tex_info->texpixel_size) : Rect2(0, 0, 1, 1);
-					dst_rect = Rect2(rect->rect.position, rect->rect.size);
-
-					if (dst_rect.size.width < 0) {
-						dst_rect.position.x += dst_rect.size.width;
-						dst_rect.size.width *= -1;
-					}
-					if (dst_rect.size.height < 0) {
-						dst_rect.position.y += dst_rect.size.height;
-						dst_rect.size.height *= -1;
+					if (rect->flags & CANVAS_RECT_REGION) {
+						uv_rect.position = rect->source.position * tex_info->texpixel_size;
+						uv_rect.size = rect->source.size * tex_info->texpixel_size;
 					}
 
 					if (rect->flags & CANVAS_RECT_FLIP_H) {
-						src_rect.size.x *= -1;
+						uv_rect.size.x *= -1;
 					}
 
 					if (rect->flags & CANVAS_RECT_FLIP_V) {
-						src_rect.size.y *= -1;
+						uv_rect.size.y *= -1;
 					}
 
 					if (rect->flags & CANVAS_RECT_TRANSPOSE) {
 						instance_data->flags |= INSTANCE_FLAGS_TRANSPOSE_RECT;
 					}
 
-					if (rect->flags & CANVAS_RECT_CLIP_UV) {
-						instance_data->flags |= INSTANCE_FLAGS_CLIP_RECT_UV;
-					}
+					if (has_region_tile) {
+						Vector2 uv_repeat = rect -> texture_repeat_size * tex_info->texpixel_size;
 
-				} else {
-					dst_rect = Rect2(rect->rect.position, rect->rect.size);
+						uv_rect.size.x = (uv_repeat.x >= 0.01f) ? uv_rect.size.x/uv_repeat.x : 1.0f;
+						uv_rect.size.y = (uv_repeat.y >= 0.01f) ? uv_rect.size.y/uv_repeat.y : 1.0f;
 
-					if (dst_rect.size.width < 0) {
-						dst_rect.position.x += dst_rect.size.width;
-						dst_rect.size.width *= -1;
+						// Fill data
+						instance_data->custom_value[0] = uv_repeat.x;
+						instance_data->custom_value[1] = uv_repeat.y;
 					}
-					if (dst_rect.size.height < 0) {
-						dst_rect.position.y += dst_rect.size.height;
-						dst_rect.size.height *= -1;
-					}
+				}
 
-					src_rect = Rect2(0, 0, 1, 1);
+				if (dst_rect.size.x < 0.0f) {
+					dst_rect.position.x -= dst_rect.size.x;
+				}
+
+				if (dst_rect.size.y < 0.0f) {
+					dst_rect.position.y -= dst_rect.size.y;
 				}
 
 				instance_data->modulation[0] = modulated.r;
@@ -2524,93 +2160,15 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 				instance_data->modulation[2] = modulated.b;
 				instance_data->modulation[3] = modulated.a;
 
-				instance_data->src_rect[0] = src_rect.position.x;
-				instance_data->src_rect[1] = src_rect.position.y;
-				instance_data->src_rect[2] = src_rect.size.width;
-				instance_data->src_rect[3] = src_rect.size.height;
+				instance_data->uv_rect[0] = uv_rect.position.x;
+				instance_data->uv_rect[1] = uv_rect.position.y;
+				instance_data->uv_rect[2] = uv_rect.size.width;
+				instance_data->uv_rect[3] = uv_rect.size.height;
 
 				instance_data->dst_rect[0] = dst_rect.position.x;
 				instance_data->dst_rect[1] = dst_rect.position.y;
 				instance_data->dst_rect[2] = dst_rect.size.width;
 				instance_data->dst_rect[3] = dst_rect.size.height;
-
-				_add_to_batch(r_batch_broken, r_current_batch);
-			} break;
-
-			case Item::Command::TYPE_NINEPATCH: {
-				const Item::CommandNinePatch *np = static_cast<const Item::CommandNinePatch *>(c);
-
-				if (r_current_batch->command_type != Item::Command::TYPE_NINEPATCH) {
-					r_current_batch = _new_batch(r_batch_broken);
-					r_current_batch->command_type = Item::Command::TYPE_NINEPATCH;
-					r_current_batch->command = c;
-					r_current_batch->has_blend = false;
-					r_current_batch->shader_variant = SHADER_VARIANT_NINEPATCH;
-					r_current_batch->render_primitive = RD::RENDER_PRIMITIVE_TRIANGLES;
-					r_current_batch->flags = 0;
-					r_current_batch->use_msdf = false;
-					r_current_batch->use_lcd = false;
-				}
-
-				TextureState tex_state(np->texture, texture_filter, texture_repeat, false, use_linear_colors);
-				TextureInfo *tex_info = texture_info_map.getptr(tex_state);
-				if (!tex_info) {
-					tex_info = &texture_info_map.insert(tex_state, TextureInfo())->value;
-					_prepare_batch_texture_info(np->texture, tex_state, tex_info);
-				}
-
-				if (r_current_batch->tex_info != tex_info) {
-					r_current_batch = _new_batch(r_batch_broken);
-					r_current_batch->tex_info = tex_info;
-				}
-
-				InstanceData *instance_data = new_instance_data(*r_current_batch, template_instance);
-
-				Rect2 src_rect;
-				Rect2 dst_rect(np->rect.position.x, np->rect.position.y, np->rect.size.x, np->rect.size.y);
-
-				if (np->texture.is_valid() && np->source != Rect2()) {
-					src_rect = Rect2(np->source.position.x * tex_info->texpixel_size.width, np->source.position.y * tex_info->texpixel_size.height, np->source.size.x * tex_info->texpixel_size.width, np->source.size.y * tex_info->texpixel_size.height);
-					instance_data->ninepatch_pixel_size[0] = 1.0 / np->source.size.width;
-					instance_data->ninepatch_pixel_size[1] = 1.0 / np->source.size.height;
-				} else {
-					src_rect = Rect2(0, 0, 1, 1);
-					// Set the default ninepatch pixel size to the full texture size.
-					instance_data->ninepatch_pixel_size[0] = tex_info->texpixel_size.width;
-					instance_data->ninepatch_pixel_size[1] = tex_info->texpixel_size.height;
-				}
-
-				Color modulated = np->color * base_color;
-				if (use_linear_colors) {
-					modulated = modulated.srgb_to_linear();
-				}
-
-				instance_data->modulation[0] = modulated.r;
-				instance_data->modulation[1] = modulated.g;
-				instance_data->modulation[2] = modulated.b;
-				instance_data->modulation[3] = modulated.a;
-
-				instance_data->src_rect[0] = src_rect.position.x;
-				instance_data->src_rect[1] = src_rect.position.y;
-				instance_data->src_rect[2] = src_rect.size.width;
-				instance_data->src_rect[3] = src_rect.size.height;
-
-				instance_data->dst_rect[0] = dst_rect.position.x;
-				instance_data->dst_rect[1] = dst_rect.position.y;
-				instance_data->dst_rect[2] = dst_rect.size.width;
-				instance_data->dst_rect[3] = dst_rect.size.height;
-
-				instance_data->flags |= int(np->axis_x) << INSTANCE_FLAGS_NINEPATCH_H_MODE_SHIFT;
-				instance_data->flags |= int(np->axis_y) << INSTANCE_FLAGS_NINEPATCH_V_MODE_SHIFT;
-
-				if (np->draw_center) {
-					instance_data->flags |= INSTANCE_FLAGS_NINEPACH_DRAW_CENTER;
-				}
-
-				instance_data->ninepatch_margins[0] = np->margin[SIDE_LEFT];
-				instance_data->ninepatch_margins[1] = np->margin[SIDE_TOP];
-				instance_data->ninepatch_margins[2] = np->margin[SIDE_RIGHT];
-				instance_data->ninepatch_margins[3] = np->margin[SIDE_BOTTOM];
 
 				_add_to_batch(r_batch_broken, r_current_batch);
 			} break;
@@ -2941,7 +2499,7 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 		_update_transform_2d_to_mat2x3(base_transform, template_instance.world);
 		InstanceData *instance_data = new_instance_data(*r_current_batch, template_instance);
 
-		Rect2 src_rect;
+		Rect2 uv_rect;
 		Rect2 dst_rect;
 
 		dst_rect = p_item->rect;
@@ -2954,17 +2512,17 @@ void RendererCanvasRenderRD::_record_item_commands(const Item *p_item, RenderTar
 			dst_rect.size.height *= -1;
 		}
 
-		src_rect = Rect2(0, 0, 1, 1);
+		uv_rect = Rect2(0, 0, 1, 1);
 
 		instance_data->modulation[0] = dc.r;
 		instance_data->modulation[1] = dc.g;
 		instance_data->modulation[2] = dc.b;
 		instance_data->modulation[3] = dc.a;
 
-		instance_data->src_rect[0] = src_rect.position.x;
-		instance_data->src_rect[1] = src_rect.position.y;
-		instance_data->src_rect[2] = src_rect.size.width;
-		instance_data->src_rect[3] = src_rect.size.height;
+		instance_data->uv_rect[0] = uv_rect.position.x;
+		instance_data->uv_rect[1] = uv_rect.position.y;
+		instance_data->uv_rect[2] = uv_rect.size.width;
+		instance_data->uv_rect[3] = uv_rect.size.height;
 
 		instance_data->dst_rect[0] = dst_rect.position.x;
 		instance_data->dst_rect[1] = dst_rect.position.y;
@@ -3062,8 +2620,7 @@ void RendererCanvasRenderRD::_render_batch(RD::DrawListID p_draw_list, CanvasSha
 	pipeline_key.lcd_blend = p_batch->has_blend;
 
 	switch (p_batch->command_type) {
-		case Item::Command::TYPE_RECT:
-		case Item::Command::TYPE_NINEPATCH: {
+		case Item::Command::TYPE_RECT: {
 			PushConstant push_constant = p_batch->push_constant();
 
 			pipeline_key.vertex_format_id = shader.quad_vertex_format_id;
@@ -3295,7 +2852,6 @@ RendererCanvasRenderRD::Batch *RendererCanvasRenderRD::_new_batch(bool &r_batch_
 
 void RendererCanvasRenderRD::_add_to_batch(bool &r_batch_broken, Batch *&r_current_batch) {
 	DEV_ASSERT(r_current_batch->command_type == Item::Command::TYPE_RECT ||
-			r_current_batch->command_type == Item::Command::TYPE_NINEPATCH ||
 			r_current_batch->command_type == Item::Command::TYPE_PRIMITIVE);
 	r_current_batch->instance_count++;
 	memcpy(&state.instance_data[state.instance_data_index], &state.intermediary_instance_data, sizeof(InstanceData));

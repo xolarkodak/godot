@@ -33,14 +33,7 @@ layout(location = 1) out vec4 color_interp;
 // Varyings so the per-instance info can be used in the fragment shader
 layout(location = 2) out flat vec4 varying_A;
 layout(location = 3) out flat uvec4 varying_B;
-layout(location = 4) out flat uvec4 varying_C;
 
-#ifdef USE_NINEPATCH
-layout(location = 5) out flat vec4 varying_D;
-layout(location = 6) out flat vec4 varying_E;
-layout(location = 7) out flat vec4 varying_F;
-layout(location = 8) out vec2 pixel_size_interp;
-#endif // USE_NINEPATCH
 #endif // !USE_ATTRIBUTES
 
 #define read_draw_data_color_texture_pixel_size params.color_texture_pixel_size
@@ -68,7 +61,11 @@ layout(location = 13) in uvec4 attrib_F;
 layout(location = 13) in vec4 attrib_F;
 #endif // USE_PRIMITIVE
 layout(location = 14) in uvec4 attrib_G;
-layout(location = 15) in uvec4 attrib_H;
+
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_QUAD_REGION_TILE)
+layout(location = 15) in vec4 attrib_H;
+layout(location = 5) out vec4 uv_repeat;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_QUAD_REGION_TILE
 
 #define read_draw_data_world_x attrib_A.xy
 #define read_draw_data_world_y attrib_A.zw
@@ -92,9 +89,7 @@ layout(location = 15) in uvec4 attrib_H;
 
 #else // !USE_PRIMITIVE
 
-#define read_draw_data_ninepatch_pixel_size (attrib_B.zw)
 #define read_draw_data_modulation attrib_C
-#define read_draw_data_ninepatch_margins attrib_D
 #define read_draw_data_dst_rect attrib_E
 #define read_draw_data_src_rect attrib_F
 
@@ -102,7 +97,6 @@ layout(location = 15) in uvec4 attrib_H;
 
 #define read_draw_data_flags attrib_G.z
 #define read_draw_data_instance_offset attrib_G.w
-#define read_draw_data_lights attrib_H
 
 #endif // USE_ATTRIBUTES
 
@@ -123,6 +117,12 @@ vec3 srgb_to_linear(vec3 color) {
 #endif
 
 void main() {
+
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_QUAD_REGION_TILE)
+	uv_repeat.xy = read_draw_data_src_rect.xy;
+	uv_repeat.zw = attrib_H.xy;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_QUAD_REGION_TILE
+
 #ifndef USE_ATTRIBUTES
 	varying_A = vec4(read_draw_data_world_x, read_draw_data_world_y);
 #ifdef USE_PRIMITIVE
@@ -130,12 +130,6 @@ void main() {
 #else
 	varying_B = uvec4(read_draw_data_flags, read_draw_data_instance_offset, packHalf2x16(read_draw_data_src_rect.xy), packHalf2x16(read_draw_data_src_rect.zw));
 #endif
-	varying_C = read_draw_data_lights;
-#ifdef USE_NINEPATCH
-	varying_D = read_draw_data_ninepatch_margins;
-	varying_E = vec4(read_draw_data_dst_rect.z, read_draw_data_dst_rect.w, read_draw_data_ninepatch_pixel_size.x, read_draw_data_ninepatch_pixel_size.y);
-	varying_F = read_draw_data_src_rect;
-#endif // USE_NINEPATCH
 #endif // !USE_ATTRIBUTES
 
 	vec4 instance_custom = vec4(0.0);
@@ -193,12 +187,20 @@ void main() {
 	vec4 bone_weights = weight_attrib;
 #else // !USE_ATTRIBUTES
 
-	vec2 vertex_base_arr[4] = vec2[](vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(1.0, 0.0));
-	vec2 vertex_base = vertex_base_arr[gl_VertexIndex];
+	vec2 vertex_base = vec2(0.0);
+	int vertex_id = gl_VertexIndex % 4;
 
+	vertex_base.x = float(vertex_id == 3 || vertex_id == 2);
+	vertex_base.y = float(vertex_id == 1 || vertex_id == 2);
+
+#if !defined(USE_QUAD_REGION_TILE)
 	vec2 uv = read_draw_data_src_rect.xy + abs(read_draw_data_src_rect.zw) * ((read_draw_data_flags & INSTANCE_FLAGS_TRANSPOSE_RECT) != 0 ? vertex_base.yx : vertex_base.xy);
+#else // !USE_QUAD_REGION_TILE (USE_QUAD_REGION_TILE)
+	vec2 uv = abs(read_draw_data_src_rect.zw)*vertex_base;
+#endif // !USE_QUAD_REGION_TILE
+
 	vec4 color = read_draw_data_modulation;
-	vec2 vertex = read_draw_data_dst_rect.xy + abs(read_draw_data_dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(read_draw_data_src_rect.zw, vec2(0.0, 0.0)));
+	vec2 vertex = read_draw_data_dst_rect.xy + read_draw_data_dst_rect.zw * vertex_base;
 	uvec4 bones = uvec4(0, 0, 0, 0);
 
 #endif // USE_ATTRIBUTES
@@ -276,10 +278,6 @@ void main() {
 #CODE : VERTEX
 	}
 
-#ifdef USE_NINEPATCH
-	pixel_size_interp = abs(read_draw_data_dst_rect.zw) * vertex_base;
-#endif
-
 #if !defined(SKIP_TRANSFORM_USED) && !defined(USE_WORLD_VERTEX_COORDS)
 	vertex = (model_matrix * vec4(vertex, 0.0, 1.0)).xy;
 #endif
@@ -336,26 +334,15 @@ layout(location = 2) in flat vec4 varying_A;
 #define read_draw_data_world_y varying_A.zw
 
 layout(location = 3) in flat uvec4 varying_B;
-layout(location = 4) in flat uvec4 varying_C;
 #define read_draw_data_flags varying_B.x
 #define read_draw_data_instance_offset varying_B.y
 #define read_draw_data_src_rect (varying_B.zw)
-#define read_draw_data_lights varying_C
-
-#ifdef USE_NINEPATCH
-layout(location = 5) in flat vec4 varying_D;
-layout(location = 6) in flat vec4 varying_E;
-layout(location = 7) in flat vec4 varying_F;
-layout(location = 8) in vec2 pixel_size_interp;
-#define read_draw_data_ninepatch_margins varying_D
-#define read_draw_data_dst_rect_z varying_E.x
-#define read_draw_data_dst_rect_w varying_E.y
-#define read_draw_data_ninepatch_pixel_size (varying_E.zw)
-#define read_draw_data_src_rect_ninepatch (varying_F);
-
-#endif // USE_NINEPATCH
-
 #endif // USE_ATTRIBUTES
+
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_QUAD_REGION_TILE)
+layout(location = 5) in vec4 uv_repeat;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_QUAD_REGION_TILE
+
 
 layout(location = 0) out vec4 frag_color;
 
@@ -369,70 +356,19 @@ layout(set = 1, binding = 0, std140) uniform MaterialUniforms {
 
 #GLOBALS
 
-#ifdef USE_NINEPATCH
-
-float map_ninepatch_axis(float pixel, float draw_size, float tex_pixel_size, float margin_begin, float margin_end, int np_repeat, inout int draw_center) {
-	float tex_size = 1.0 / tex_pixel_size;
-
-	if (pixel < margin_begin) {
-		return pixel * tex_pixel_size;
-	} else if (pixel >= draw_size - margin_end) {
-		return (tex_size - (draw_size - pixel)) * tex_pixel_size;
-	} else {
-		draw_center -= 1 - int(bitfieldExtract(read_draw_data_flags, INSTANCE_FLAGS_NINEPATCH_DRAW_CENTER_SHIFT, 1));
-
-		// np_repeat is passed as uniform using NinePatchRect::AxisStretchMode enum.
-		if (np_repeat == 0) { // Stretch.
-			// Convert to ratio.
-			float ratio = (pixel - margin_begin) / (draw_size - margin_begin - margin_end);
-			// Scale to source texture.
-			return (margin_begin + ratio * (tex_size - margin_begin - margin_end)) * tex_pixel_size;
-		} else if (np_repeat == 1) { // Tile.
-			// Convert to offset.
-			float ofs = mod((pixel - margin_begin), tex_size - margin_begin - margin_end);
-			// Scale to source texture.
-			return (margin_begin + ofs) * tex_pixel_size;
-		} else if (np_repeat == 2) { // Tile Fit.
-			// Calculate scale.
-			float src_area = draw_size - margin_begin - margin_end;
-			float dst_area = tex_size - margin_begin - margin_end;
-			float scale = max(1.0, floor(src_area / max(dst_area, 0.0000001) + 0.5));
-			// Convert to ratio.
-			float ratio = (pixel - margin_begin) / src_area;
-			ratio = mod(ratio * scale, 1.0);
-			// Scale to source texture.
-			return (margin_begin + ratio * dst_area) * tex_pixel_size;
-		} else { // Shouldn't happen, but silences compiler warning.
-			return 0.0;
-		}
-	}
-}
-
-#endif
-
 float msdf_median(float r, float g, float b) {
 	return max(min(r, g), min(max(r, g), b));
 }
 
 void main() {
 	vec4 color = color_interp;
-	vec2 uv = uv_vertex_interp.xy;
 	vec2 vertex = uv_vertex_interp.zw;
 
-#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_NINEPATCH)
-	int draw_center = 2;
-	uv = vec2(
-			map_ninepatch_axis(pixel_size_interp.x, abs(read_draw_data_dst_rect_z), read_draw_data_ninepatch_pixel_size.x, read_draw_data_ninepatch_margins.x, read_draw_data_ninepatch_margins.z, int(bitfieldExtract(read_draw_data_flags, INSTANCE_FLAGS_NINEPATCH_H_MODE_SHIFT, 2)), draw_center),
-			map_ninepatch_axis(pixel_size_interp.y, abs(read_draw_data_dst_rect_w), read_draw_data_ninepatch_pixel_size.y, read_draw_data_ninepatch_margins.y, read_draw_data_ninepatch_margins.w, int(bitfieldExtract(read_draw_data_flags, INSTANCE_FLAGS_NINEPATCH_V_MODE_SHIFT, 2)), draw_center));
-
-	if (draw_center == 0) {
-		color.a = 0.0;
-	}
-
-	vec4 ninepatch_src_rect = read_draw_data_src_rect_ninepatch;
-
-	uv = uv * ninepatch_src_rect.zw + ninepatch_src_rect.xy; //apply region if needed
-#endif
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_QUAD_REGION_TILE)
+	vec2 uv = uv_repeat.xy + fract(uv_vertex_interp.xy)*uv_repeat.zw;
+#else // !USE_ATTRIBUTES && !USE_PRIMITIVE || !USE_QUAD_REGION_TILE
+	vec2 uv = uv_vertex_interp.xy;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE || !USE_QUAD_REGION_TILE
 
 #if !defined(FRAGMENT_CODE_USED) && (defined(USE_ATTRIBUTES) || defined(USE_PRIMITIVE) || (!defined(USE_MSDF) && !defined(USE_LCD)))
 	color *= texture(sampler2D(color_texture, texture_sampler), uv);

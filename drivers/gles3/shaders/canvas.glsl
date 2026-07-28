@@ -8,11 +8,10 @@ mode_default =
 USE_PRIMITIVE = false   // spec: 1  << 0
 USE_ATTRIBUTES = false  // spec: 2  << 1
 USE_INSTANCING = false  // spec: 4  << 2
-USE_NINEPATCH = false   // spec: 8  << 3
+USE_REGION_TILE = false // spec: 8  << 3
 PIXEL_SNAP = false      // spec: 16  << 4
 USE_MSDF = false        // spec: 32  << 5
 USE_LCD = false         // spec: 64  << 6
-// USE_REGION_TILE = false // spec: 128  << 7
 
 // ------------- VERTEX STAGE -------------
 
@@ -22,16 +21,13 @@ USE_LCD = false         // spec: 64  << 6
 layout(location = 0) in vec2 vertex_attrib;
 layout(location = 3) in vec4 color_attrib;
 layout(location = 4) in vec2 uv_attrib;
+#endif // USE_ATTRIBUTES
 
-#ifdef USE_INSTANCING
-
+#if defined(USE_ATTRIBUTES) && defined(USE_INSTANCING)
 layout(location = 1) in highp vec4 instance_xform0;
 layout(location = 2) in highp vec4 instance_xform1;
 layout(location = 5) in highp uvec4 instance_color_custom_data; // Color packed into xy, custom_data packed into zw for compatibility with 3D
-
-#endif // USE_INSTANCING
-
-#endif // USE_ATTRIBUTES
+#endif // USE_ATTRIBUTES && USE_INSTANCING
 
 #include "stdlib_inc.glsl"
 
@@ -48,18 +44,19 @@ layout(location = 9) in highp vec4 attrib_B;
 layout(location = 10) in highp vec4 attrib_C;
 layout(location = 11) in highp vec4 attrib_D;
 layout(location = 12) in highp vec4 attrib_E;
+
 #ifdef USE_PRIMITIVE
 layout(location = 13) in highp uvec4 attrib_F;
 #else
 layout(location = 13) in highp vec4 attrib_F;
 #endif
+
 layout(location = 14) in highp uvec4 attrib_G;
-layout(location = 15) in highp uvec4 attrib_H;
 
 #define read_draw_data_world_x attrib_A.xy
 #define read_draw_data_world_y attrib_A.zw
 #define read_draw_data_world_ofs attrib_B.xy
-#define read_draw_data_color_texture_pixel_size attrib_B.zw
+#define texpixel_size attrib_B.zw
 
 #ifdef USE_PRIMITIVE
 
@@ -77,34 +74,30 @@ layout(location = 15) in highp uvec4 attrib_H;
 #define read_draw_data_color_c_rg attrib_G.x
 #define read_draw_data_color_c_ba attrib_G.y
 
-#else
+#else // USE_PRIMITIVE
 
 #define read_draw_data_modulation attrib_C
-#define read_draw_data_ninepatch_margins attrib_D
-#define read_draw_data_dst_rect attrib_E
-#define read_draw_data_src_rect attrib_F
+#define read_draw_data_msdf attrib_D
+#define dst_rect attrib_E
+#define uv_rect attrib_F
 
-#endif
+#endif // USE_PRIMITIVE
 
 #define read_draw_data_flags attrib_G.z
 #define read_draw_data_instance_offset attrib_G.w
-#define read_draw_data_lights attrib_H
 
 // Varyings so the per-instance info can be used in the fragment shader
-flat out vec4 varying_A;
 flat out vec2 varying_B;
 #ifndef USE_PRIMITIVE
 flat out vec4 varying_C;
-#ifndef USE_ATTRIBUTES
-#ifdef USE_NINEPATCH
-
-flat out vec2 varying_D;
-#endif
-flat out vec4 varying_E;
-#endif
 #endif
 flat out uvec2 varying_F;
-flat out uvec4 varying_G;
+
+// IN-OUT for Region Tile
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
+layout(location = 15) in highp vec4 attrib_H;
+flat out vec4 uv_repeat;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_REGION_TILE
 
 // This needs to be outside clang-format so the ubo comment is in the right place
 #ifdef MATERIAL_UNIFORMS_USED
@@ -115,53 +108,44 @@ layout(std140) uniform MaterialUniforms{ //ubo:4
 };
 #endif
 
-uniform mediump uint batch_flags;
-
 /* clang-format on */
 #include "canvas_uniforms_inc.glsl"
 
+uniform mediump uint batch_flags;
+
 out vec2 uv_interp;
-out vec4 color_interp;
 out vec2 vertex_interp;
-
-#ifdef USE_NINEPATCH
-
-out vec2 pixel_size_interp;
-
-#endif
+out vec4 color_interp;
 
 #GLOBALS
 
 void main() {
-	varying_A = vec4(read_draw_data_world_x, read_draw_data_world_y);
-	varying_B = read_draw_data_color_texture_pixel_size;
-#ifndef USE_PRIMITIVE
-	varying_C = read_draw_data_ninepatch_margins;
-
-#ifndef USE_ATTRIBUTES
-#ifdef USE_NINEPATCH
-	varying_D = vec2(read_draw_data_dst_rect.z, read_draw_data_dst_rect.w);
-#endif // USE_NINEPATCH
-	varying_E = read_draw_data_src_rect;
-#endif // !USE_ATTRIBUTES
-#endif // USE_PRIMITIVE
-
-	varying_F = uvec2(read_draw_data_flags, read_draw_data_instance_offset);
-	varying_G = read_draw_data_lights;
-
 	vec4 instance_custom = vec4(0.0);
+
+	varying_B = texpixel_size;
+	varying_F = uvec2(read_draw_data_flags, read_draw_data_instance_offset);
+
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
+	uv_repeat.xy = uv_rect.xy;
+	uv_repeat.zw = attrib_H.xy;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_REGION_TILE
+
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_MSDF)
+	varying_C = read_draw_data_msdf;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_MSDF
 
 #if defined(CUSTOM0_USED)
 	vec4 custom0 = vec4(0.0);
 #endif
+
 #if defined(CUSTOM1_USED)
 	vec4 custom1 = vec4(0.0);
 #endif
 
 #ifdef USE_PRIMITIVE
-	vec2 vertex;
-	vec2 uv;
-	vec4 color;
+	vec2 vertex = vec2(0.0);
+	vec2 uv = vec2(0.0);
+	vec4 color = vec4(0.0);
 
 	if (gl_VertexID % 3 == 0) {
 		vertex = read_draw_data_point_a;
@@ -196,39 +180,26 @@ void main() {
 		instance_custom.xy = unpackHalf2x16(instance_color_custom_data.z);
 		instance_custom.zw = unpackHalf2x16(instance_color_custom_data.w);
 	}
-#endif // !USE_INSTANCING
+#endif // USE_INSTANCING
 
-#else // !USE_ATTRIBUTES
+#else // USE_ATTRIBUTES (!USE_PRIMITIVE and !USE_ATTRIBUTES)
 
-	// crash on Adreno 320/330
-	//vec2 vertex_base_arr[6] = vec2[](vec2(0.0, 0.0), vec2(0.0, 1.0), vec2(1.0, 1.0), vec2(1.0, 0.0), vec2(0.0, 0.0), vec2(1.0, 1.0));
-	//vec2 vertex_base = vertex_base_arr[gl_VertexID % 6];
-	//-----------------------------------------
-	// ID |  0  |  1  |  2  |  3  |  4  |  5  |
-	//-----------------------------------------
-	// X  | 0.0 | 0.0 | 1.0 | 1.0 | 0.0 | 1.0 |
-	// Y  | 0.0 | 1.0 | 1.0 | 0.0 | 0.0 | 1.0 |
-	//-----------------------------------------
-	// no crash or freeze on all Adreno 3xx	with 'if / else if' and slightly faster!
-	int vertex_id = gl_VertexID % 6;
-	vec2 vertex_base;
-	if (vertex_id == 0) {
-		vertex_base = vec2(0.0, 0.0);
-	} else if (vertex_id == 1) {
-		vertex_base = vec2(0.0, 1.0);
-	} else if (vertex_id == 2) {
-		vertex_base = vec2(1.0, 1.0);
-	} else if (vertex_id == 3) {
-		vertex_base = vec2(1.0, 0.0);
-	} else if (vertex_id == 4) {
-		vertex_base = vec2(0.0, 0.0);
-	} else if (vertex_id == 5) {
-		vertex_base = vec2(1.0, 1.0);
-	}
+	vec2 vertex_base = vec2(0.0);
+	int vertex_id = gl_VertexID % 4;
 
-	vec2 uv = read_draw_data_src_rect.xy + abs(read_draw_data_src_rect.zw) * ((read_draw_data_flags & INSTANCE_FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
+	vertex_base.x = float(vertex_id == 3 || vertex_id == 2);
+	vertex_base.y = float(vertex_id == 1 || vertex_id == 2);
+
+#if !defined(USE_REGION_TILE)
+	vec2 uv = uv_rect.xy + abs(uv_rect.zw) * ((read_draw_data_flags & INSTANCE_FLAGS_TRANSPOSE_RECT) != uint(0) ? vertex_base.yx : vertex_base.xy);
+	//vec2 uv = uv_rect.xy + uv_rect.zw*vertex_base;
+#else // !USE_REGION_TILE (USE_REGION_TILE)
+	vec2 uv = abs(uv_rect.zw)*vertex_base;
+#endif // !USE_REGION_TILE
+
 	vec4 color = read_draw_data_modulation;
-	vec2 vertex = read_draw_data_dst_rect.xy + abs(read_draw_data_dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(read_draw_data_src_rect.zw, vec2(0.0, 0.0)));
+	vec2 vertex = dst_rect.xy + dst_rect.zw * vertex_base;
+	//vec2 vertex = read_draw_data_dst_rect.xy + abs(read_draw_data_dst_rect.zw) * mix(vertex_base, vec2(1.0, 1.0) - vertex_base, lessThan(uv_rect.zw, vec2(0.0, 0.0)));
 
 #endif // USE_ATTRIBUTES
 
@@ -246,7 +217,7 @@ void main() {
 	model_matrix = model_matrix * transpose(mat4(instance_xform0, instance_xform1, vec4(0.0, 0.0, 1.0, 0.0), vec4(0.0, 0.0, 0.0, 1.0)));
 #endif // USE_INSTANCING
 
-	vec2 color_texture_pixel_size = read_draw_data_color_texture_pixel_size;
+	vec2 color_texture_pixel_size = texpixel_size;
 
 #ifdef USE_POINT_SIZE
 	float point_size = 1.0;
@@ -255,13 +226,10 @@ void main() {
 #ifdef USE_WORLD_VERTEX_COORDS
 	vertex = (model_matrix * vec4(vertex, 0.0, 1.0)).xy;
 #endif
+
 	{
 #CODE : VERTEX
 	}
-
-#ifdef USE_NINEPATCH
-	pixel_size_interp = abs(read_draw_data_dst_rect.zw) * vertex_base;
-#endif
 
 #if !defined(SKIP_TRANSFORM_USED) && !defined(USE_WORLD_VERTEX_COORDS)
 	vertex = (model_matrix * vec4(vertex, 0.0, 1.0)).xy;
@@ -299,47 +267,30 @@ in vec2 uv_interp;
 in vec2 vertex_interp;
 in vec4 color_interp;
 
-#ifdef USE_NINEPATCH
-
-in vec2 pixel_size_interp;
-
-#endif
-
 // Can all be flat as they are the same for the whole batched instance
-flat in vec4 varying_A;
 flat in vec2 varying_B;
-#define read_draw_data_world_x varying_A.xy
-#define read_draw_data_world_y varying_A.zw
-#define read_draw_data_color_texture_pixel_size varying_B
+#define texpixel_size varying_B
 
-#ifndef USE_PRIMITIVE
+// INPUT Region TILE data
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
+flat in vec4 uv_repeat;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_REGION_TILE
+
+// INPUT MSDF data
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_MSDF)
 flat in vec4 varying_C;
-#define read_draw_data_ninepatch_margins varying_C
-
-#ifndef USE_ATTRIBUTES
-#ifdef USE_NINEPATCH
-
-flat in vec2 varying_D;
-#define read_draw_data_dst_rect_z varying_D.x
-#define read_draw_data_dst_rect_w varying_D.y
-#endif
-
-flat in vec4 varying_E;
-#define read_draw_data_src_rect varying_E
-#endif // USE_ATTRIBUTES
-#endif // USE_PRIMITIVE
+#define read_draw_data_msdf varying_C
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE && USE_REGION_TILE
 
 flat in uvec2 varying_F;
-flat in uvec4 varying_G;
 #define read_draw_data_flags varying_F.x
 #define read_draw_data_instance_offset varying_F.y
-#define read_draw_data_lights varying_G
 
-uniform sampler2D color_buffer; //texunit:-4
 uniform sampler2D main_texture; //texunit:0
 
-uniform mediump uint batch_flags;
-uniform highp uint specular_shininess_in;
+#if defined(SCREEN_TEXTURE_USE)
+uniform sampler2D backbuffer_texture; //texunit:-4
+#endif // SCREEN_TEXTURE_USE
 
 layout(location = 0) out vec4 frag_color;
 
@@ -356,81 +307,29 @@ layout(std140) uniform MaterialUniforms{ //ubo:4
 
 #GLOBALS
 
-#ifdef USE_NINEPATCH
-
-float map_ninepatch_axis(float pixel, float draw_size, float tex_pixel_size, float margin_begin, float margin_end, int np_repeat, inout int draw_center) {
-	float tex_size = 1.0 / tex_pixel_size;
-
-	if (pixel < margin_begin) {
-		return pixel * tex_pixel_size;
-	} else if (pixel >= draw_size - margin_end) {
-		return (tex_size - (draw_size - pixel)) * tex_pixel_size;
-	} else {
-		if (!bool(read_draw_data_flags & INSTANCE_FLAGS_NINEPATCH_DRAW_CENTER)) {
-			draw_center--;
-		}
-
-		// np_repeat is passed as uniform using NinePatchRect::AxisStretchMode enum.
-		if (np_repeat == 0) { // Stretch.
-			// Convert to ratio.
-			float ratio = (pixel - margin_begin) / (draw_size - margin_begin - margin_end);
-			// Scale to source texture.
-			return (margin_begin + ratio * (tex_size - margin_begin - margin_end)) * tex_pixel_size;
-		} else if (np_repeat == 1) { // Tile.
-			// Convert to offset.
-			float ofs = mod((pixel - margin_begin), tex_size - margin_begin - margin_end);
-			// Scale to source texture.
-			return (margin_begin + ofs) * tex_pixel_size;
-		} else if (np_repeat == 2) { // Tile Fit.
-			// Calculate scale.
-			float src_area = draw_size - margin_begin - margin_end;
-			float dst_area = tex_size - margin_begin - margin_end;
-			float scale = max(1.0, floor(src_area / max(dst_area, 0.0000001) + 0.5));
-			// Convert to ratio.
-			float ratio = (pixel - margin_begin) / src_area;
-			ratio = mod(ratio * scale, 1.0);
-			// Scale to source texture.
-			return (margin_begin + ratio * dst_area) * tex_pixel_size;
-		} else { // Shouldn't happen, but silences compiler warning.
-			return 0.0;
-		}
-	}
-}
-
-#endif
-
 float msdf_median(float r, float g, float b) {
 	return max(min(r, g), min(max(r, g), b));
 }
 
 void main() {
 	vec4 color = color_interp;
-	vec2 uv = uv_interp;
 	vec2 vertex = vertex_interp;
 
-#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_NINEPATCH)
-	int draw_center = 2;
-	uv = vec2(
-			map_ninepatch_axis(pixel_size_interp.x, abs(read_draw_data_dst_rect_z), read_draw_data_color_texture_pixel_size.x, read_draw_data_ninepatch_margins.x, read_draw_data_ninepatch_margins.z, int(read_draw_data_flags >> INSTANCE_FLAGS_NINEPATCH_H_MODE_SHIFT) & 0x3, draw_center),
-			map_ninepatch_axis(pixel_size_interp.y, abs(read_draw_data_dst_rect_w), read_draw_data_color_texture_pixel_size.y, read_draw_data_ninepatch_margins.y, read_draw_data_ninepatch_margins.w, int(read_draw_data_flags >> INSTANCE_FLAGS_NINEPATCH_V_MODE_SHIFT) & 0x3, draw_center));
-
-	if (draw_center == 0) {
-		color.a = 0.0;
-	}
-
-	uv = uv * read_draw_data_src_rect.zw + read_draw_data_src_rect.xy; //apply region if needed
-#endif
+#if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE) && defined(USE_REGION_TILE)
+	vec2 uv = uv_repeat.xy + fract(uv_interp)*uv_repeat.zw;
+#else // !USE_ATTRIBUTES && !USE_PRIMITIVE || !USE_REGION_TILE
+	vec2 uv = uv_interp;
+#endif // !USE_ATTRIBUTES && !USE_PRIMITIVE || !USE_REGION_TILE
 
 #if !defined(FRAGMENT_CODE_USED) && (defined(USE_ATTRIBUTES) || defined(USE_PRIMITIVE) || (!defined(USE_MSDF) && !defined(USE_LCD)))
 	color *= texture(main_texture, uv);
 #endif
 
-
 #if !defined(USE_ATTRIBUTES) && !defined(USE_PRIMITIVE)
 	// only used by TYPE_RECT
 	#if defined(USE_MSDF)
-		float px_range = read_draw_data_ninepatch_margins.x;
-		float outline_thickness = read_draw_data_ninepatch_margins.y;
+		float px_range = read_draw_data_msdf.x;
+		float outline_thickness = read_draw_data_msdf.y;
 
 		vec4 msdf_sample = texture(main_texture, uv);
 		vec2 msdf_size = vec2(textureSize(main_texture, 0));
@@ -460,6 +359,8 @@ void main() {
 #if defined(SCREEN_UV_USED)
 	vec2 screen_uv = gl_FragCoord.xy * screen_pixel_size;
 #endif
+
+	//vec2 color_texture_pixel_size = texpixel_size.xy;
 
 #CODE : FRAGMENT
 

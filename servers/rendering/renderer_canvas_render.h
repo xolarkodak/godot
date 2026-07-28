@@ -47,6 +47,7 @@ public:
 		CANVAS_RECT_IS_GROUP = 64,
 		CANVAS_RECT_MSDF = 128,
 		CANVAS_RECT_LCD = 256,
+		CANVAS_RECT_REGION_TILE = 512,
 	};
 
 	struct Light {
@@ -199,6 +200,7 @@ public:
 			Rect2 rect;
 			Color modulate;
 			Rect2 source;
+			Vector2 texture_repeat_size; 
 			uint16_t flags;
 			float outline;
 			float px_range;
