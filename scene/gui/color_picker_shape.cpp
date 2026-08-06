@@ -424,7 +424,7 @@ void ColorPickerShapeRectangle::_sv_square_draw() {
 
 void ColorPickerShapeRectangle::_hue_slider_draw() {
 	const Vector2 size = hue_slider->get_size();
-	hue_slider->draw_texture_rect(color_picker->theme_cache.color_hue, Rect2(0, 0, -size.y, size.x), false, Color(1, 1, 1), true);
+	hue_slider->draw_texture_rect(color_picker->theme_cache.color_hue, Rect2(0, 0, size.y, size.x), false, Color(1, 1, 1), true);
 
 	draw_focus_rect(hue_slider);
 
